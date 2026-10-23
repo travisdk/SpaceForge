@@ -52,6 +52,11 @@ struct NoiseBaseline
 };
 NoiseBaseline noiseBaseline (const Stereo& tail, size_t from, size_t to, double t60, double sampleRate);
 
+// How differently two renders of the same sound unfold: octave-band levels (125 Hz..8 kHz) in
+// 170 ms frames, the average difference in dB. Coarse on purpose, so random fine detail averages
+// out and only real changes (scattered fragments, other colour) remain. 0 = identical.
+double spectroTemporalDifferenceDb (const Stereo& a, const Stereo& b, double sampleRate, size_t from, size_t to);
+
 // Pitch wobble from modulated delay lines, in cents (largest deviation of a sine-modulated delay).
 double modulationCents (double depthMs, double rateHz);
 } // namespace spaceforge::analysis

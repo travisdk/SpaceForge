@@ -55,6 +55,7 @@ void SpaceEngine::prepare (double newSampleRate)
     chunk = std::clamp ((int) std::lround (kChunkSeconds * sampleRate), 16, kMaxChunk);
     left->SetSamplerate ((int) sampleRate);
     right->SetSamplerate ((int) sampleRate);
+    texture.prepare (sampleRate);
     mixCoeff = (float) (1.0 - std::exp (-1.0 / (kMixSmoothingSeconds * sampleRate)));
     inputGainStep = (float) (1.0 / (kFreezeFadeSeconds * sampleRate));
     applyVoicing();
@@ -122,6 +123,7 @@ void SpaceEngine::applyVoicing()
         set (P::SeedPostDiffusion, v.seedPostDiffusion);
     }
     applyFreeze (frozen);
+    texture.setVoicing (v.texture);
     for (auto& f : sideHighPass)
         f.setup (v.monoBassHz, sampleRate);
     wetGain = (float) std::pow (10.0, v.wetGainDb / 20.0);
@@ -148,6 +150,7 @@ void SpaceEngine::reset()
 {
     left->ClearBuffers();
     right->ClearBuffers();
+    texture.reset();
     for (auto& f : sideHighPass)
         f.s1 = f.s2 = 0.0;
     inL.fill (0.0f);
@@ -172,8 +175,9 @@ void SpaceEngine::process (const float* inputL, const float* inputR, float* outL
         const float gainTarget = frozen ? 0.0f : 1.0f;
         inputGain = inputGain < gainTarget ? std::min (gainTarget, inputGain + inputGainStep)
                                            : std::max (gainTarget, inputGain - inputGainStep);
-        inL[(size_t) pos] = dryL * inputGain;
-        inR[(size_t) pos] = dryR * inputGain;
+        inL[(size_t) pos] = dryL;
+        inR[(size_t) pos] = dryR;
+        inGain[(size_t) pos] = inputGain;
         const float wl = wetL[(size_t) pos], wr = wetR[(size_t) pos];
         if (++pos == chunk)
         {
@@ -199,16 +203,36 @@ void SpaceEngine::processChunk()
     if (freezeTarget != frozen)
         applyFreeze (freezeTarget);
 
-    // Each side hears a little of the other (Cloud Seed's own input mix).
+    // Clouds runs all the time (also frozen), so its last second of sound is always current.
+    texture.process (inL.data(), inR.data(), grainsL.data(), grainsR.data(), chunk);
+
+    // Into the room: input and grains (equal-power), muted while frozen. Each side hears a
+    // little of the other (Cloud Seed's own input mix).
+    const auto amount = (float) std::clamp (currentVoicing.textureAmount, 0.0, 1.0);
+    const float inputPart = std::cos (amount * (float) (kPi / 2.0)), grainPart = std::sin (amount * (float) (kPi / 2.0));
     const float cross = (float) currentVoicing.crossFeed * 0.5f;
     std::array<float, kMaxChunk> feedL, feedR;
     for (int i = 0; i < chunk; ++i)
     {
-        feedL[(size_t) i] = inL[(size_t) i] * (1.0f - cross) + inR[(size_t) i] * cross;
-        feedR[(size_t) i] = inR[(size_t) i] * (1.0f - cross) + inL[(size_t) i] * cross;
+        const auto k = (size_t) i;
+        const float l = (inL[k] * inputPart + grainsL[k] * grainPart) * inGain[k];
+        const float r = (inR[k] * inputPart + grainsR[k] * grainPart) * inGain[k];
+        feedL[k] = l * (1.0f - cross) + r * cross;
+        feedR[k] = r * (1.0f - cross) + l * cross;
     }
     left->Process (feedL.data(), wetL.data(), chunk);
     right->Process (feedR.data(), wetR.data(), chunk);
+
+    // Some of the grains may also go straight out beside the room, where they are heard as
+    // grains before the room dissolves them.
+    const auto direct = (float) std::pow (10.0, currentVoicing.grainsDirectDb / 20.0);
+    if (currentVoicing.grainsDirectDb > -60.0)
+        for (int i = 0; i < chunk; ++i)
+        {
+            const auto k = (size_t) i;
+            wetL[k] += grainsL[k] * direct * inGain[k];
+            wetR[k] += grainsR[k] * direct * inGain[k];
+        }
 
     bool finite = true;
     for (int i = 0; i < chunk; ++i)

@@ -79,10 +79,12 @@ set_target_properties(clouds PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # ---------------------------------------------------------------------------------------------
 # SpaceForge 2's own sound engine (no JUCE): shared by the plug-in, the render tool and the tests.
-add_library(spaceforge_dsp STATIC source/dsp/SpaceEngine.cpp)
+add_library(spaceforge_dsp STATIC
+    source/dsp/SpaceEngine.cpp
+    source/dsp/TextureEngine.cpp)
 target_include_directories(spaceforge_dsp PUBLIC source)
 target_link_libraries(spaceforge_dsp
-    PUBLIC cloudseed
+    PUBLIC cloudseed clouds
     PRIVATE juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)
 set_target_properties(spaceforge_dsp PROPERTIES POSITION_INDEPENDENT_CODE ON)
 

@@ -16,6 +16,12 @@ target_link_libraries(test_space PRIVATE spaceforge_analysis juce::juce_recommen
 add_test(NAME space COMMAND test_space)
 add_dependencies(SpaceForge_Tests test_space)
 
+# The granular texture: sample-rate conversion, every host rate, extreme settings.
+add_executable(test_texture test_texture.cpp)
+target_link_libraries(test_texture PRIVATE spaceforge_analysis juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)
+add_test(NAME texture COMMAND test_texture)
+add_dependencies(SpaceForge_Tests test_texture)
+
 # The plug-in as a host drives it.
 add_executable(test_plugin test_plugin.cpp)
 target_include_directories(test_plugin PRIVATE ${PROJECT_SOURCE_DIR}/source $<TARGET_PROPERTY:SpaceForge2,INCLUDE_DIRECTORIES>)

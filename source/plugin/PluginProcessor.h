@@ -6,8 +6,8 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "dsp/SpaceEngine.h"
 
-// Phase 2: the room (Cloud Seed) alone, with Mix and Freeze. Stereo out, mono or stereo in.
-// Clouds comes in front of it in phase 3.
+// Granular texture (Clouds) into the room (Cloud Seed), with Mix and Freeze. Stereo out, mono
+// or stereo in. One fixed voicing until the macros arrive (phase 4).
 class SpaceForgeProcessor : public juce::AudioProcessor
 {
 public:

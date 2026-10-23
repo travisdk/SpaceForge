@@ -41,6 +41,8 @@ Motorernes indre ændres kun, hvor det er nødvendigt for at få dem til at kør
 Input -> Clouds (tekstur) -> Cloud Seed (rum og ekko) -> Tone/finish -> Mix
 ```
 
+En del af kornene går også direkte ud ved siden af rummet (valgt af Henrik ved lytning i fase 3: inde i rummet alene blev kornene opløst, så de ikke kunne høres).
+
 Kan Clouds' egen reverb gøre Cloud Seed overflødig i nogle presets, eller omvendt: fint. Det afgøres ved at lytte.
 
 ## Kontroller

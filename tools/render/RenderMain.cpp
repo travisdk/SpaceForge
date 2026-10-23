@@ -9,6 +9,7 @@
 // --set changes one voicing value for this run only (for trying things out), e.g.
 //   sf2_render --set decaySeconds=18 --set lowpassHz=7000
 
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -38,7 +39,11 @@ std::map<std::string, double*> voicingFields (dsp::SpaceVoicing& v)
              { "lateDiffuseModHz", &v.lateDiffuseModHz }, { "lateLevelDb", &v.lateLevelDb }, { "lowShelfHz", &v.lowShelfHz },
              { "lowShelfDb", &v.lowShelfDb }, { "highShelfHz", &v.highShelfHz }, { "highShelfDb", &v.highShelfDb },
              { "lowpassHz", &v.lowpassHz }, { "crossSeed", &v.crossSeed }, { "monoBassHz", &v.monoBassHz },
-             { "wetGainDb", &v.wetGainDb } };
+             { "wetGainDb", &v.wetGainDb }, { "textureAmount", &v.textureAmount }, { "grainsDirectDb", &v.grainsDirectDb },
+             { "texture.position", &v.texture.position }, { "texture.size", &v.texture.size },
+             { "texture.density", &v.texture.density }, { "texture.texture", &v.texture.texture },
+             { "texture.stereoSpread", &v.texture.stereoSpread }, { "texture.feedback", &v.texture.feedback },
+             { "texture.gainDb", &v.texture.gainDb } };
 }
 
 std::map<std::string, int*> voicingIntFields (dsp::SpaceVoicing& v)
@@ -98,13 +103,21 @@ int main (int argc, char** argv)
             if (! analysis::writeWav (path, s, kRate))
                 std::fprintf (stderr, "kunne ikke skrive %s\n", path.c_str());
         };
+        // A = the room alone (as in phase 2), B = with the granular texture in front of it.
+        auto withoutTexture = voicing;
+        withoutTexture.textureAmount = 0.0;
         for (const auto& signal : analysis::allTestSignals (kRate, 20.0))
         {
             analysis::RenderOptions wet, mixed;
             mixed.mix = mix;
             write (signal.name + "_1_toer", signal.audio);
-            write (signal.name + "_2_vaad", analysis::render (*engine, signal.audio, kRate, wet));
-            write (signal.name + "_3_mix", analysis::render (*engine, signal.audio, kRate, mixed));
+            for (const bool texture : { false, true })
+            {
+                engine->setVoicing (texture ? voicing : withoutTexture);
+                const std::string variant = texture ? "B_med_clouds" : "A_uden_clouds";
+                write (signal.name + "_2_vaad_" + variant, analysis::render (*engine, signal.audio, kRate, wet));
+                write (signal.name + "_3_mix_" + variant, analysis::render (*engine, signal.audio, kRate, mixed));
+            }
             std::printf ("  %-6s  %s\n", signal.name.c_str(), signal.description.c_str());
         }
         // Freeze: the pad is frozen at 3 s, held for 10 s, then released.
@@ -112,8 +125,21 @@ int main (int argc, char** argv)
         freeze.freezeOnSeconds = 3.0;
         freeze.freezeOffSeconds = 13.0;
         write ("pad_4_freeze", analysis::render (*engine, analysis::makePad (kRate, 30.0).audio, kRate, freeze));
-        std::printf ("  pad_4_freeze  Pad'en fryses ved 3 s, holdes i 10 s og slippes igen.\n");
-        std::printf ("  (_1_toer = uden effekt, _2_vaad = kun rummet, _3_mix = standard-mix %d %%)\n\n", (int) (mix * 100.0f + 0.5f));
+        std::printf ("  pad_4_freeze  Pad'en fryses ved 3 s, holdes i 10 s og slippes igen (med Clouds).\n");
+        std::printf ("  (_1_toer = uden effekt, _2_vaad = kun effekten, _3_mix = standard-mix %d %%;\n"
+                     "   A_uden_clouds = kun rummet, B_med_clouds = korn foran rummet)\n\n", (int) (mix * 100.0f + 0.5f));
+    }
+
+    // CPU: 20 s of pink noise in 256-sample blocks, the time against real time.
+    {
+        engine->setVoicing (voicing);
+        const auto pink = analysis::makePinkNoise (kRate, 20.0, 0.125f, 5);
+        analysis::RenderOptions options;
+        options.blockSize = 256;
+        const auto start = std::chrono::steady_clock::now();
+        analysis::render (*engine, pink, kRate, options);
+        const double seconds = std::chrono::duration<double> (std::chrono::steady_clock::now() - start).count();
+        std::printf ("CPU: %.1f %% af én kerne ved 48 kHz (20 s lyd på %.2f s)\n\n", seconds / 20.0 * 100.0, seconds);
     }
 
     const auto c = analysis::measureCharacter (*engine, kRate, mix);
@@ -124,7 +150,8 @@ int main (int argc, char** argv)
     for (const double t : c.t60Band)
         std::printf ("  %6.1f s", t);
     std::printf ("\n\nLysstyrke (spektralt tyngdepunkt): tør %.0f Hz, hale %.0f Hz\n", c.centroidDry, c.centroidWet);
-    std::printf ("Ideel hale til sammenligning: ringen %.1f dB, ujævnhed %.2f dB\n\n", c.baseline.ringingDb, c.baseline.flutterDb);
+    std::printf ("Ideel hale til sammenligning: ringen %.1f dB, ujævnhed %.2f dB\n", c.baseline.ringingDb, c.baseline.flutterDb);
+    std::printf ("Clouds' ændring af synth-figuren: %.2f dB (rummets egen tilfældighed: %.2f dB)\n\n", c.textureChangeDb, c.randomChangeDb);
 
     int misses = 0;
     std::printf ("%-55s %9s   %s\n", "Måling", "Værdi", "Mål");

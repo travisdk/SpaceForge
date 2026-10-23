@@ -6,6 +6,7 @@
 #include <array>
 #include <memory>
 #include "dsp/SpaceVoicing.h"
+#include "dsp/TextureEngine.h"
 
 namespace Cloudseed
 {
@@ -14,7 +15,8 @@ class ReverbChannel;
 
 namespace spaceforge::dsp
 {
-// The room: Cloud Seed's two reverb channels plus everything around them that a plug-in needs.
+// The sound engine: granular texture (Clouds) into the room (Cloud Seed's two reverb channels),
+// plus everything around them that a plug-in needs.
 // No JUCE, so the offline render tool and the tests use exactly what the plug-in runs.
 //
 // - Cloud Seed's feedback loops are delayed by one processing block, so its sound would change
@@ -45,6 +47,8 @@ public:
 
     // How late the wet signal is, in samples (the fixed chunk).
     int wetLatency() const { return chunk; }
+    // See TextureEngine::underruns(); always 0.
+    int textureUnderruns() const { return texture.underruns(); }
 
     static constexpr double kChunkSeconds = 128.0 / 48000.0;
     // Decay while frozen: practically endless (0.0006 dB per second).
@@ -62,7 +66,9 @@ private:
     int chunk = 128;
     int pos = 0;
 
-    std::array<float, kMaxChunk> inL {}, inR {}, wetL {}, wetR {};
+    TextureEngine texture;
+    // Per chunk: the dry input, its gain into the room (Freeze), the grains, the room's output.
+    std::array<float, kMaxChunk> inL {}, inR {}, inGain {}, grainsL {}, grainsR {}, wetL {}, wetR {};
 
     // High-pass on the wet side signal, two second-order stages (makes the bass mono).
     struct HighPass

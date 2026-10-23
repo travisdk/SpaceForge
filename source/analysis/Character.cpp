@@ -14,10 +14,11 @@ namespace
 size_t at (double seconds, double sampleRate) { return (size_t) (seconds * sampleRate); }
 
 // Cloud Seed starts each delay line's modulation at a random phase (std::rand). Two engines
-// built after the same srand are identical, which the freeze leak measurement needs.
-std::unique_ptr<dsp::SpaceEngine> twinEngine (const dsp::SpaceVoicing& voicing, double sampleRate)
+// built after the same srand are identical; a different seed gives the same room with other
+// random detail.
+std::unique_ptr<dsp::SpaceEngine> twinEngine (const dsp::SpaceVoicing& voicing, double sampleRate, unsigned seed = 7)
 {
-    std::srand (7);
+    std::srand (seed);
     auto engine = std::make_unique<dsp::SpaceEngine>();
     engine->setVoicing (voicing);
     engine->prepare (sampleRate);
@@ -28,7 +29,13 @@ std::unique_ptr<dsp::SpaceEngine> twinEngine (const dsp::SpaceVoicing& voicing, 
 Character measureCharacter (dsp::SpaceEngine& engine, double sampleRate, float defaultMix)
 {
     Character c;
-    const auto& v = engine.voicing();
+    const auto v = engine.voicing();
+
+    // The room's own character is measured without the grains in front of it: they are random,
+    // so an impulse response through them would not be the room's.
+    auto roomOnly = v;
+    roomOnly.textureAmount = 0.0;
+    engine.setVoicing (roomOnly);
 
     // Impulse response: decay times, density, evenness.
     const auto impulse = makeImpulse (sampleRate, 30.0);
@@ -54,8 +61,30 @@ Character measureCharacter (dsp::SpaceEngine& engine, double sampleRate, float d
     c.ringingDb = ringingDb (tail, sampleRate, from, to);
     c.baseline = noiseBaseline (tail, from, to, c.t60 > 0 ? c.t60 : 10.0, sampleRate);
 
-    // Level with steady material: the last 6 of 12 s of pink noise.
+    // Texture: grains alone into the room are as loud as the input alone (pink noise), and they
+    // clearly change how the synth figure unfolds in the room (it is scattered into fragments):
+    // more than the room's own random detail does (the same room with other modulation phases).
     const auto pink = makePinkNoise (sampleRate, 12.0, 0.125f, 3);
+    const auto figure = makeSynthFigure (sampleRate, 4.0);
+    const size_t figureTo = at (5.0, sampleRate);
+    const double inputOnly = rmsDb (render (engine, pink, sampleRate), at (6.0, sampleRate), pink.size());
+    // Two identical fresh engines, one without and one with grains (one engine rendering twice
+    // would differ anyway: Cloud Seed's modulation runs on between renders).
+    const auto figureRoomOnly = render (*twinEngine (roomOnly, sampleRate), figure.audio, sampleRate);
+    const auto figureOtherDetail = render (*twinEngine (roomOnly, sampleRate, 99), figure.audio, sampleRate);
+    c.randomChangeDb = spectroTemporalDifferenceDb (figureOtherDetail, figureRoomOnly, sampleRate, 0, figureTo);
+    auto grainsOnly = v;
+    grainsOnly.textureAmount = 1.0;
+    engine.setVoicing (grainsOnly);
+    c.textureLevelDb = rmsDb (render (engine, pink, sampleRate), at (6.0, sampleRate), pink.size()) - inputOnly;
+    c.textureUnderruns = engine.textureUnderruns();
+    engine.setVoicing (v);
+    auto withGrains = twinEngine (v, sampleRate);
+    const auto figureWith = render (*withGrains, figure.audio, sampleRate);
+    c.textureUnderruns += withGrains->textureUnderruns();
+    c.textureChangeDb = spectroTemporalDifferenceDb (figureWith, figureRoomOnly, sampleRate, 0, figureTo);
+
+    // Level with steady material: the last 6 of 12 s of pink noise.
     const double dry = rmsDb (pink, at (6.0, sampleRate), pink.size());
     c.wetMinusDryDb = rmsDb (render (engine, pink, sampleRate), at (6.0, sampleRate), pink.size()) - dry;
     RenderOptions mixed;
@@ -71,11 +100,11 @@ Character measureCharacter (dsp::SpaceEngine& engine, double sampleRate, float d
     c.freezeDriftDb = rmsDb (held, at (14.0, sampleRate), at (15.0, sampleRate)) - rmsDb (held, at (4.0, sampleRate), at (5.0, sampleRate));
 
     auto disturbed = pad.audio;
-    const auto figure = makeSynthFigure (sampleRate, 0.0);
-    for (size_t i = 0; i < figure.audio.size(); ++i)
+    const auto shortFigure = makeSynthFigure (sampleRate, 0.0);
+    for (size_t i = 0; i < shortFigure.audio.size(); ++i)
     {
-        disturbed.l[at (6.0, sampleRate) + i] += figure.audio.l[i];
-        disturbed.r[at (6.0, sampleRate) + i] += figure.audio.r[i];
+        disturbed.l[at (6.0, sampleRate) + i] += shortFigure.audio.l[i];
+        disturbed.r[at (6.0, sampleRate) + i] += shortFigure.audio.r[i];
     }
     const auto heldDisturbed = render (*busy, disturbed, sampleRate, freeze);
     Stereo difference = held;
@@ -106,6 +135,9 @@ std::vector<Target> targetsFor (const Character& c)
         { "Tid til tæt hale (ingen enkelt-ekkoer)", c.densityMs, 0.0, 150.0, "ms" },
         { "Ringen over ideel hale", c.ringingDb - c.baseline.ringingDb, -10.0, 1.5, "dB" },
         { "Ujævnt henfald over ideel hale", c.flutterDb - c.baseline.flutterDb, -10.0, 1.0, "dB" },
+        { "Clouds: kornenes niveau mod input (ind i rummet)", c.textureLevelDb, -1.5, 1.5, "dB" },
+        { "Clouds: ændrer synth-figuren, gange mere end tilfældighed", c.textureChangeDb / c.randomChangeDb, 2.5, 100.0, "x" },
+        { "Clouds: huller i lyden (skal være 0)", (double) c.textureUnderruns, 0.0, 0.0, "" },
         { "Vådt niveau mod tørt (pink støj)", c.wetMinusDryDb, -1.5, 1.5, "dB" },
         { "Niveau ved standard-mix mod tørt", c.mixMinusDryDb, -2.0, 2.0, "dB" },
         { "Freeze: niveauændring over 10 s", c.freezeDriftDb, -3.0, 1.0, "dB" },

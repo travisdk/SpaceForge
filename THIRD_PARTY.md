@@ -24,15 +24,22 @@ Notes:
 - The parts of stmlib with other licenses (`ui/event_queue.h` GPLv3, `utils/crc32.h`,
   `utils/murmurhash3.h`, `third_party/STM`, `programming/serial`) are hardware/UI code that the
   Clouds DSP does not use, and are not copied.
-- **One change** to Cloud Seed, needed for real-time use in a plug-in (marked "SpaceForge 2:" in
-  the code): `DSP/ReverbChannel.h` caches the per-line random values and regenerates them only
-  when a seed changes. The original regenerated them (allocating a `std::vector`) on every
-  decay, size or modulation change, which must not happen on the audio thread. The sound is
-  unchanged: the same values are produced from the same seeds. Clouds and stmlib are unmodified.
-- Known Clouds issues, found by AddressSanitizer, to fix in phase 3 before Clouds goes into the
-  plug-in: (1) with its dry/wet parameter at exactly 1.0 the output cross-fade reads one entry
-  past `lut_xfade_in`/`lut_xfade_out` (avoidable: keep dry/wet below 1); (2) a grain envelope at
-  exactly its peak reads one entry past `lut_window` (`grain.h`, needs a one-line clamp).
+- **Changes to the engines**, each only what real-time use in a plug-in needs, marked
+  "SpaceForge 2:" in the code. The sound is unchanged.
+  - Cloud Seed, `DSP/ReverbChannel.h`: caches the per-line random values and regenerates them
+    only when a seed changes. The original regenerated them (allocating a `std::vector`) on
+    every decay, size or modulation change, which must not happen on the audio thread.
+  - Clouds, `clouds/dsp/grain.h`: the grain window lookup is clamped just below the end of
+    `lut_window`. At a grain's peak it read one entry past the table (found by
+    AddressSanitizer).
+  - stmlib is unmodified.
+- Known Clouds issues worked around without a code change (found by AddressSanitizer): with
+  its dry/wet parameter at exactly 1.0 the output cross-fade reads one entry past
+  `lut_xfade_in`/`lut_xfade_out`, and with size at exactly 1.0 grain scheduling reads one entry
+  past `lut_grain_size`. SpaceForge never sends a setting above 0.999 (dry/wet 0.999: grains
+  only, the dry signal 56 dB down) and mixes dry and grains itself.
+- Clouds runs at its native 32 kHz; `source/dsp/TextureEngine.*` converts to and from the host
+  rate with SpaceForge 2's own converter (`source/dsp/Resampler.h`).
 - Only build glue lives outside `third_party/`: `source/compat/CloudSeedCompat.h` supplies
   `strcpy_s` and `std::sinf`/`sqrtf`/`expf`, which Cloud Seed expects from MSVC, to other
   compilers; Clouds is built with its author's desktop define `TEST`.

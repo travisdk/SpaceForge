@@ -3,13 +3,25 @@
 
 #pragma once
 
+#include "dsp/TextureEngine.h"
+
 namespace spaceforge::dsp
 {
 // The settings of Cloud Seed's algorithm that give SpaceForge 2 its character, in real units
-// (ms, Hz, dB, seconds). Phase 2 has one fixed voicing, tuned by measurement towards long, soft,
-// dark and floating tails; the macros (phase 4) will move some of these values.
+// (ms, Hz, dB, seconds), plus the granular texture in front of it. One fixed voicing, tuned by
+// measurement towards long, soft, dark and floating tails; the macros (phase 4) will move some
+// of these values.
 struct SpaceVoicing
 {
+    // Granular texture (Clouds) in front of the room. 0 = the room hears only the input,
+    // 1 = only the grains; equal-power in between. Henrik chose clearly audible grains (between
+    // the "tydelig" and "kraftig" variants of the phase 3 listening test).
+    double textureAmount = 1.0;
+    TextureVoicing texture;
+    // Grains also straight to the output beside the room, in dB (-60 or lower = off): there they
+    // are heard as grains before the room dissolves them.
+    double grainsDirectDb = -3.0;
+
     // Input: what goes into the room. The low cut keeps kick drums out of the tail.
     double crossFeed = 0.2;        // 0..1, how much of each input side reaches the other
     double inputLowCutHz = 110.0;
@@ -54,6 +66,6 @@ struct SpaceVoicing
     // Below this the wet signal is mono (both sides the same).
     double monoBassHz = 150.0;
     // Makes the wet signal as loud as the dry for steady material (calibrated with pink noise).
-    double wetGainDb = 0.4;
+    double wetGainDb = -1.1;
 };
 } // namespace spaceforge::dsp

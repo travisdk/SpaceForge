@@ -104,7 +104,7 @@ void testCloudSeed()
     }
 }
 
-[[maybe_unused]] void testClouds()
+void testClouds()
 {
     constexpr double rate = 32000.0;
     constexpr size_t block = 32;
@@ -130,9 +130,8 @@ void testCloudSeed()
     p->pitch = 0.0f;
     p->density = 0.75f;
     p->texture = 0.5f;
-    // Wet only, but not exactly 1: at 1.0 Clouds' cross-fade lookup (granular_processor.cc, the
-    // Interpolate on lut_xfade_in) reads one entry past its 17-entry table (found by
-    // AddressSanitizer). Phase 3 must keep dry_wet below 1 or mix dry and wet itself.
+    // Wet only, but not exactly 1: at 1.0 Clouds' cross-fade lookup reads one entry past its
+    // table (THIRD_PARTY.md). TextureEngine keeps it below 1 the same way.
     p->dry_wet = 0.999f;
     p->stereo_spread = 0.5f;
     p->feedback = 0.0f;
@@ -178,12 +177,6 @@ void testCloudSeed()
 int main()
 {
     testCloudSeed();
-#if defined(__SANITIZE_ADDRESS__)
-    // Clouds reads one entry past two lookup tables (see THIRD_PARTY.md); fixed in phase 3, when
-    // Clouds goes into the plug-in. Until then the sanitizer run checks Cloud Seed only.
-    std::printf ("Clouds: skipped under AddressSanitizer (known table overread, phase 3)\n");
-#else
     testClouds();
-#endif
     return finish ("engines");
 }
