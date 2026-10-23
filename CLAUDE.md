@@ -1,0 +1,143 @@
+# SpaceForge 2
+
+Tekstur-effekt til minimal/hypnotisk techno og ambient: enorme, levende rum, ekkoer og granulær tekstur. Målet er **lange, bløde, mørke og flydende haler** til hypnotisk techno, i retning af den karakter SuperMassive og SOL er kendt for, og derfra prægning i Henriks egen retning.
+
+## Roller (læs denne først)
+
+- **Henrik har smagen.** Han vurderer kun: "kan jeg lide det?" og giver feedback i ord som "for lys", "for kort", "mere bevægelse". Du oversætter ordene til ændringer og viser med målinger, at ændringen er sket. Han er ikke DSP-ingeniør og skal aldrig bedes om tekniske vurderinger af reverb, delay eller filtre.
+- **Claude Code har teknikken.** Al teknisk vurdering, måling og fejlfinding er dit ansvar. Når et valg skal træffes, så præsentér det som en lytte-sammenligning (A/B), ikke som et teknisk spørgsmål.
+- Forklar altid i jævnt dansk. Henrik har stærk .NET/clean architecture-baggrund, men begrænset C++-erfaring.
+
+## Lektier fra SpaceForge 1 (gentag dem ikke)
+
+1. **Lyden først.** Version 1 byggede knapper, 54 presets og tests før nogen havde lyttet. Resultatet var flot, men lyden var ikke god nok. Ingen nye features, før motoren lyder godt.
+2. **Kvalitet arves, den opfindes ikke.** Brug gennemprøvede open source-motorer i stedet for at skrive reverbs fra bunden.
+3. **En test der er grøn, er ikke det samme som en knap der virker.** Tests skal kræve en hørbar minimumseffekt, ikke kun den rigtige retning.
+4. **Mål selv, før Henrik lytter.** Vis tallene. Henriks ører bruges på smag, ikke på at finde ud af om noget virker.
+5. **Erklær aldrig noget for løst uden bevis** i form af en tabel eller måling, som Henrik kan se.
+6. **Presets laves af Henrik med ørerne**, ikke af Claude Code på papiret.
+
+## Motorerne vi bygger på
+
+Begge licenser **skal verificeres som det allerførste** (se Licens). Er en af dem ikke AGPLv3-kompatibel: stop og spørg.
+
+**Cloud Seed** (rum og ekkoer, SuperMassive-delen)
+- Algoritmisk reverb til enorme, endeløse rum og modulerede ekkoer; bygget som specialeffekt til tykke pads ud fra simple lyde
+- Kernen: https://github.com/GhostNoteAudio/CloudSeedCore
+- Original (MIT): https://github.com/ValdemarOrn/CloudSeed
+- Har sine egne delaylinjer, tidlige refleksioner og modulation. Brug dem til Echo, før der overvejes et separat delay
+
+**Mutable Instruments Clouds** (granulær tekstur, SOL-delen)
+- "Texture synthesizer": granulær motor med feedback, spredning og indbygget reverb
+- Kode: https://github.com/pichenettes/eurorack (mappen `clouds`, evt. også efterfølgeren `beads`)
+- Skrevet til en mikrocontroller med fast samplerate; skal tilpasses vilkårlige host-samplerater og bufferstørrelser
+- Afhænger af `stmlib` fra samme forfatter
+
+Motorernes indre ændres kun, hvor det er nødvendigt for at få dem til at køre i et plugin. Lydændringer sker via makro-mapping, ikke ved at omskrive algoritmerne.
+
+## Signalkæde
+
+```
+Input -> Clouds (tekstur) -> Cloud Seed (rum og ekko) -> Tone/finish -> Mix
+```
+
+Kan Clouds' egen reverb gøre Cloud Seed overflødig i nogle presets, eller omvendt: fint. Det afgøres ved at lytte.
+
+## Kontroller
+
+Kun disse i v1: **Space, Echo, Motion, Tone, Mix, Freeze.** Nye knapper tilføjes kun, når Henrik beder om dem efter at have lyttet.
+
+Makroerne har **faste roller, fast retning og én fælles absolut skala i alle presets.** En knapposition betyder altid det samme, uanset preset. Højre er altid "mere".
+
+- **Space**: tæt og kort -> stort og uendeligt. Styrer rumstørrelse, decay og stereobredde
+- **Echo**: intet ekko -> mange gentagelser. Styrer ekko-mængde og feedback
+- **Motion**: stille -> levende. Styrer modulation, granulær aktivitet og tempo-synket auto-pan
+- **Tone**: mørk -> lys. Klangfarve uden at ændre lydstyrken (niveaukompensation)
+
+Regler:
+- Hver intern parameter ejes af præcis én knap
+- Ingen makro må ændre det samlede niveau mere end ca. 3 dB
+- Alle makroer virker i alle presets
+- Under hver knap vises værdien i rigtige enheder (fx "18 s", "1/8d · 3x", "mørk ••••○ lys"), og DAW'en får de samme tekster
+- **Intet skjult:** et preset gemmer kun værdierne af de synlige kontroller. Har et preset brug for et valg uden egen knap (fx nodeværdi eller ping-pong), vises det som tekst ved den relevante knap
+
+## Stereo
+
+- Det våde signal er mono under ca. 150 Hz; ingen "ekstra bred" (bredde over 1)
+- Mono-sum må højst miste ca. 3 dB
+- Auto-pan (Motion) synkes til host-tempo: 1/2, 1, 2, 4 eller 8 takter. Kører transporten ikke, kører pan frit, så den altid kan høres
+
+## Presets
+
+- Kun **Init** som factory-preset til at starte med. Henrik laver resten ved at dreje og gemme
+- JSON, én fil pr. preset, brugerpresets i brugerens dokumentmappe
+- Preset-skift er **rent**: lyden skifter straks med en kort crossfade (30 til 50 ms), ingen spillover. Knap-animationen er kun visuel og må aldrig få lyden til at glide. Delaytider crossfades i stedet for at glide (ingen pitch-sweep)
+- Terningen flytter de fire makroer synligt (ca. 250 ms animation), mindst to af dem mærkbart. Mix og Freeze røres aldrig. Fortryd for de sidste 10 kast. Ændret preset markeres med *
+- **Alt der ændrer lyden, skal kunne ses i UI'et**
+
+## Lydmål og måling
+
+Der er **ingen referenceoptagelser**. Henrik optager ikke noget gennem SuperMassive eller SOL. Retningen kommer fra viden om algoritmisk reverb og delay (feedback delay networks, diffusion, modulerede delaylinjer, dæmpning i feedback-loopet) plus Henriks ord-feedback.
+
+- **Testlyde** genereres af koden selv, deterministisk: tørt klik/impuls, kort støjburst, pad-akkord, kort synth-figur, hi-hat-mønster. Ingen eksterne lydfiler
+- **Offline render**: et værktøj renderer hver testlyd gennem SpaceForge 2 til WAV i `renders/` (er i `.gitignore`), så Henrik kan lytte uden DAW
+- **Målinger** pr. render, vist som tabel: halelængde (T30/RT60, også pr. frekvensbånd), lysstyrke (spektralt tyngdepunkt, og hvor meget hurtigere diskanten dør end mellemtonen), stereobredde (korrelation over og under 150 Hz, tab ved mono-sum), niveau ind/ud, og glathed (ingen metallisk ringen, flutter eller tydelige enkelt-ekkoer i en hale der skal være glat)
+- **Startmål for karakteren** (justeres efter Henriks feedback): halen er mørk, dvs. diskanten dør klart hurtigere end mellemtonen; halen er tæt og glat uden ringen; stereo er bred over 150 Hz og mono under; bevægelsen er langsom og blød, uden hørbar pitch-vibrato
+- Henriks ord oversættes til målbare ændringer ("for lys" -> lavere tyngdepunkt / hurtigere diskant-dæmpning) og vises som før/efter-tabel
+- Valg mellem varianter præsenteres som to renders af samme testlyd (A og B), ikke som et teknisk spørgsmål
+
+
+## Genbrug fra søsterprojekter
+
+Ved siden af ligger `../SpaceForge` (version 1), `../SubForge` og `../BleepForge`. De er **skrivebeskyttede**: læs og kopiér, ændr aldrig.
+
+Fra `../SpaceForge` hentes især: det visuelle design og animationerne, preset-browseren (søgning, favoritter, kategorier), terning med fortryd, sikkerheds-hærdningen, build-opsætningen (CMake, JUCE, CLAP, pluginval) og visning af værdier i rigtige enheder.
+
+Fra `../SpaceForge` hentes **ikke**: CloudReverb, Grains, Delay, den gamle MacroMapper, de 54 presets og tests kalibreret til den gamle motor.
+
+Kopieret kode tilpasses det nye projekt; kopiér ikke hele filer blindt. Notér oprindelsen i `THIRD_PARTY.md`.
+
+## Faser
+
+1. **Licenser og skelet**: verificér licenserne for CloudSeedCore og Clouds/stmlib og rapportér. Derefter projektskelet med build-opsætning fra `../SpaceForge`, `LICENSE`, `THIRD_PARTY.md`
+2. **Cloud Seed alene** + Mix + Freeze + testlyde, offline render og målinger (se Lydmål og måling). Justér selv mod startmålene. **Stop: Henrik lytter.** Ingen videre før han siger god
+3. **Clouds** ind foran Cloud Seed. **Stop: Henrik lytter**
+4. **Makro-mapping** med fælles skala og kontrakt-tests (retning + hørbar minimumseffekt). Vis tabel med værdier pr. knapposition
+5. **UI** overført fra `../SpaceForge`, tilpasset de seks kontroller
+6. **Presets**: Henrik laver dem; du bygger kun værktøjerne
+7. Polering, pluginval, release
+
+Afslut hver fase med: build uden warnings, tests grønne, målinger vist, og en kort beskrivelse på jævnt dansk af hvad Henrik skal lytte efter.
+
+## Licens
+
+- SpaceForge 2 udgives under **AGPLv3**; JUCE bruges under AGPLv3
+- `LICENSE` i roden; hver kildefil starter med `// SPDX-License-Identifier: AGPL-3.0-or-later`
+- Kun AGPLv3-kompatible afhængigheder (fx MIT, BSD, ISC, Zlib, Apache 2.0, LGPL, GPLv3). Ukendt eller uklar licens: brug den ikke, spørg
+- Aldrig kode fra repos uden licens, fra lukkede produkter eller dekompileret materiale
+- SuperMassive og SOL bruges kun som ord for den ønskede karakter. Ingen optagelser af dem, ingen reverse engineering, ingen kopierede presets, værdier eller grafik, og deres navne bruges ikke i presets eller markedsføring
+- Al tredjepartskode registreres i `THIRD_PARTY.md` (navn, URL, licens, formål)
+
+## Sikkerhed
+
+- Preset- og state-indlæsning skal tåle ødelagte, enorme og ondsindede filer: begræns filstørrelse, valider alle værdier
+- Tjek altid `std::isfinite` før clamping (`jlimit` og `std::clamp` lader NaN slippe igennem); ugyldige værdier erstattes af default
+- Preset-navne saniteres, så de aldrig kan pege uden for preset-mappen
+- Åbn aldrig mapper eller filer via `File::startAsProcess()` på Linux; brug `ChildProcess` med `xdg-open` og stien som separat argument
+- Ingen netværk, aldrig
+- Afhængigheder låses til præcise versioner
+- Fuzz-test af preset-loaderen; tests køres også med AddressSanitizer og UBSan
+
+## Real-time
+
+- Ingen allokeringer, locks, fil-I/O eller logning i `processBlock`; alle buffere allokeres i `prepareToPlay`
+- Beskyt mod NaN og denormals; feedback-loops må aldrig eksplodere
+- 44,1 / 48 / 96 kHz og vilkårlige bufferstørrelser
+- Ingen klik ved preset-skift eller parameterspring
+
+## Arbejdsform på Henriks maskine
+
+- Builds og tests køres med `nice -n 19` og højst halvdelen af CPU-kernerne (Henrik lytter til musik og bruger Bitwig samtidig)
+- Byg kun det der er ændret; slet ikke build-mappen uden grund
+- Fuzz-tests har en tidsgrænse (fx 60 sekunder)
+- Formater: VST3, CLAP, Standalone. Platform: Linux primært, koden holdes platformsuafhængig
