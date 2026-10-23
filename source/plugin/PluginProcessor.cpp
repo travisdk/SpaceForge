@@ -2,12 +2,42 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 #include "plugin/PluginProcessor.h"
+#include "plugin/Defaults.h"
+
+using namespace spaceforge;
 
 SpaceForgeProcessor::SpaceForgeProcessor()
     : AudioProcessor (BusesProperties()
                           .withInput ("Input", juce::AudioChannelSet::stereo(), true)
-                          .withOutput ("Output", juce::AudioChannelSet::stereo(), true))
+                          .withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
+      apvts (*this, nullptr, "PARAMS", createParameterLayout())
 {
+    mixValue = apvts.getRawParameterValue (plugin::kMixId);
+    freezeValue = apvts.getRawParameterValue (plugin::kFreezeId);
+}
+
+juce::AudioProcessorValueTreeState::ParameterLayout SpaceForgeProcessor::createParameterLayout()
+{
+    std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
+    params.push_back (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { plugin::kMixId, 1 }, "Mix", juce::NormalisableRange<float> (0.0f, 1.0f), plugin::kDefaultMix,
+        juce::AudioParameterFloatAttributes()
+            .withStringFromValueFunction ([] (float v, int) { return juce::String (juce::roundToInt (v * 100.0f)) + " %"; })
+            .withValueFromStringFunction ([] (const juce::String& t) { return t.retainCharacters ("0123456789.-").getFloatValue() / 100.0f; })));
+    params.push_back (std::make_unique<juce::AudioParameterBool> (
+        juce::ParameterID { plugin::kFreezeId, 1 }, "Freeze", false,
+        juce::AudioParameterBoolAttributes()
+            .withStringFromValueFunction ([] (bool on, int) { return juce::String (on ? "On" : "Off"); })
+            .withValueFromStringFunction ([] (const juce::String& t) { return t.trim().equalsIgnoreCase ("on") || t.trim() == "1"; })));
+    return { params.begin(), params.end() };
+}
+
+void SpaceForgeProcessor::prepareToPlay (double sampleRate, int)
+{
+    engine.prepare (sampleRate); // may allocate: off the audio thread
+    engine.setMix (mixValue->load());
+    engine.setFreeze (freezeValue->load() >= 0.5f);
+    engine.reset(); // start at the current knob values, no glide from defaults
 }
 
 bool SpaceForgeProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -20,27 +50,73 @@ bool SpaceForgeProcessor::isBusesLayoutSupported (const BusesLayout& layouts) co
 void SpaceForgeProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
 {
     juce::ScopedNoDenormals noDenormals;
+    const int numSamples = buffer.getNumSamples();
+    if (buffer.getNumChannels() < 2 || numSamples == 0)
+        return;
 
     // Mono in: the single input channel feeds both outputs.
-    if (getTotalNumInputChannels() == 1 && buffer.getNumChannels() > 1)
-        buffer.copyFrom (1, 0, buffer, 0, 0, buffer.getNumSamples());
+    if (getTotalNumInputChannels() == 1)
+        buffer.copyFrom (1, 0, buffer, 0, 0, numSamples);
+
+    engine.setMix (mixValue->load());
+    engine.setFreeze (freezeValue->load() >= 0.5f);
+    float* left = buffer.getWritePointer (0);
+    float* right = buffer.getWritePointer (1);
+    engine.process (left, right, left, right, numSamples);
 }
 
 void SpaceForgeProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
-    juce::XmlElement state ("SpaceForge2");
-    state.setAttribute ("stateVersion", kStateVersion);
-    copyXmlToBinary (state, destData);
+    // Sorted by id, so the same settings always save byte for byte the same.
+    auto state = apvts.copyState();
+    struct ById
+    {
+        static int compareElements (const juce::ValueTree& a, const juce::ValueTree& b)
+        {
+            return a.getProperty ("id").toString().compare (b.getProperty ("id").toString());
+        }
+    } byId;
+    state.sort (byId, nullptr, false);
+    if (auto xml = state.createXml())
+    {
+        xml->setAttribute ("stateVersion", kStateVersion);
+        copyXmlToBinary (*xml, destData);
+    }
 }
 
 void SpaceForgeProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
-    // Nothing to restore yet (no parameters before phase 2); only check that it is ours.
+    // A project file may be damaged or hostile: limit the size, accept only our own tag, and take
+    // each known parameter only if its value is a finite number (clamped into range). Anything
+    // missing or invalid falls back to the default. Unknown entries are dropped.
     if (data == nullptr || sizeInBytes <= 0 || sizeInBytes > kMaxStateBytes)
         return;
     auto xml = getXmlFromBinary (data, sizeInBytes);
-    if (xml == nullptr || ! xml->hasTagName ("SpaceForge2"))
+    if (xml == nullptr || ! xml->hasTagName (apvts.state.getType()))
         return;
+
+    juce::ValueTree clean (apvts.state.getType());
+    for (auto* param : getParameters())
+    {
+        auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (param);
+        if (ranged == nullptr)
+            continue;
+        const auto& range = ranged->getNormalisableRange();
+        double value = range.convertFrom0to1 (ranged->getDefaultValue());
+        for (auto* child : xml->getChildWithTagNameIterator ("PARAM"))
+        {
+            if (child->getStringAttribute ("id") != ranged->getParameterID())
+                continue;
+            const double stored = child->getDoubleAttribute ("value", std::numeric_limits<double>::quiet_NaN());
+            if (std::isfinite (stored))
+                value = std::clamp (stored, (double) range.start, (double) range.end);
+            break;
+        }
+        clean.appendChild (juce::ValueTree ("PARAM", { { "id", ranged->getParameterID() }, { "value", value } }), nullptr);
+    }
+    apvts.replaceState (clean);
+    // Tells the host (CLAP: a parameter rescan) that every value may have changed.
+    updateHostDisplay (ChangeDetails().withProgramChanged (true));
 }
 
 juce::AudioProcessorEditor* SpaceForgeProcessor::createEditor()

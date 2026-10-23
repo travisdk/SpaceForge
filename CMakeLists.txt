@@ -42,7 +42,7 @@ add_subdirectory(${JUCE_DIR} JUCE)
 add_subdirectory(${CLAP_JUCE_EXTENSIONS_DIR} clap-juce-extensions EXCLUDE_FROM_ALL)
 
 # ---------------------------------------------------------------------------------------------
-# The two engines, vendored unmodified in third_party/ (versions and licenses in THIRD_PARTY.md).
+# The two engines, vendored in third_party/ (versions, licenses and the one change in THIRD_PARTY.md).
 # They build with their authors' own warning level; their headers are SYSTEM includes so they
 # never add warnings to our code.
 
@@ -55,7 +55,8 @@ add_library(cloudseed STATIC
 target_include_directories(cloudseed SYSTEM PUBLIC third_party/cloudseedcore)
 target_compile_definitions(cloudseed PUBLIC BUFFER_SIZE=1024 MAX_STR_SIZE=32)
 if (NOT MSVC)
-    target_compile_options(cloudseed PUBLIC -include ${CMAKE_CURRENT_SOURCE_DIR}/source/compat/CloudSeedCompat.h)
+    # C++ only: the flag reaches every target that links Cloud Seed, JUCE's C files among them
+    target_compile_options(cloudseed PUBLIC $<$<COMPILE_LANGUAGE:CXX>:-include ${CMAKE_CURRENT_SOURCE_DIR}/source/compat/CloudSeedCompat.h>)
 endif()
 set_target_properties(cloudseed PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
@@ -75,6 +76,28 @@ add_library(clouds STATIC
 target_include_directories(clouds SYSTEM PUBLIC third_party/eurorack)
 target_compile_definitions(clouds PUBLIC TEST)
 set_target_properties(clouds PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+# ---------------------------------------------------------------------------------------------
+# SpaceForge 2's own sound engine (no JUCE): shared by the plug-in, the render tool and the tests.
+add_library(spaceforge_dsp STATIC source/dsp/SpaceEngine.cpp)
+target_include_directories(spaceforge_dsp PUBLIC source)
+target_link_libraries(spaceforge_dsp
+    PUBLIC cloudseed
+    PRIVATE juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)
+set_target_properties(spaceforge_dsp PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+# Offline test sounds and measurements (never part of the plug-in).
+add_library(spaceforge_analysis STATIC
+    source/analysis/TestSignals.cpp
+    source/analysis/Measure.cpp
+    source/analysis/Character.cpp)
+target_link_libraries(spaceforge_analysis
+    PUBLIC spaceforge_dsp
+    PRIVATE juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)
+
+# sf2_render: test sounds through the engine to WAV in renders/, with a measurement report.
+add_executable(sf2_render tools/render/RenderMain.cpp)
+target_link_libraries(sf2_render PRIVATE spaceforge_analysis juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)
 
 # ---------------------------------------------------------------------------------------------
 juce_add_plugin(SpaceForge2
@@ -112,7 +135,6 @@ target_include_directories(SpaceForge2 PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/genera
 target_compile_definitions(SpaceForge2 PUBLIC
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
-    JUCE_DISPLAY_SPLASH_SCREEN=0
     JUCE_VST3_CAN_REPLACE_VST2=0)
 
 # GCC: run the link-time optimisation in parallel (and without its "serial compilation" note)
@@ -123,6 +145,7 @@ endif()
 target_link_libraries(SpaceForge2
     PRIVATE
         juce::juce_audio_utils
+        spaceforge_dsp
     PUBLIC
         juce::juce_recommended_config_flags
         juce::juce_recommended_lto_flags

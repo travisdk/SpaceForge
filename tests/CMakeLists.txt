@@ -10,6 +10,12 @@ target_link_libraries(test_engines PRIVATE cloudseed clouds juce::juce_recommend
 add_test(NAME engines COMMAND test_engines)
 add_dependencies(SpaceForge_Tests test_engines)
 
+# The room engine: character targets, sample rates, block sizes, Mix, Freeze, no allocations.
+add_executable(test_space test_space.cpp)
+target_link_libraries(test_space PRIVATE spaceforge_analysis juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)
+add_test(NAME space COMMAND test_space)
+add_dependencies(SpaceForge_Tests test_space)
+
 # The plug-in as a host drives it.
 add_executable(test_plugin test_plugin.cpp)
 target_include_directories(test_plugin PRIVATE ${PROJECT_SOURCE_DIR}/source $<TARGET_PROPERTY:SpaceForge2,INCLUDE_DIRECTORIES>)

@@ -61,6 +61,9 @@ namespace Cloudseed
 		Lp1 lowPass;
 
 		int delayLineSeed;
+		// SpaceForge 2: the per-line random values are cached and only regenerated when a seed
+		// changes, so decay, size and modulation changes never allocate on the audio thread.
+		std::vector<float> delayLineSeeds;
 		int postDiffusionSeed;
 
 		// Used the the main process loop
@@ -290,6 +293,7 @@ namespace Cloudseed
 				crossSeed = channelLr == ChannelLR::Right ? 0.5 * scaledValue : 1 - 0.5 * scaledValue;
 				multitap.SetCrossSeed(crossSeed);
 				diffuser.SetCrossSeed(crossSeed);
+				UpdateLineSeeds();
 				UpdateLines();
 				UpdatePostDiffusion();
 				break;
@@ -303,6 +307,7 @@ namespace Cloudseed
 				break;
 			case Parameter::SeedDelay:
 				delayLineSeed = (int)scaledValue;
+				UpdateLineSeeds();
 				UpdateLines();
 				break;
 			case Parameter::SeedPostDiffusion:
@@ -390,7 +395,8 @@ namespace Cloudseed
 			auto lateDiffusionModAmount = Ms2Samples(paramsScaled[Parameter::LateDiffuseModAmount]);
 			auto lateDiffusionModRate = paramsScaled[Parameter::LateDiffuseModRate];
 
-			auto delayLineSeeds = RandomBuffer::Generate(delayLineSeed, TotalLineCount * 3, crossSeed);
+			if (delayLineSeeds.empty())
+				UpdateLineSeeds();
 
 			for (int i = 0; i < TotalLineCount; i++)
 			{
@@ -411,6 +417,11 @@ namespace Cloudseed
 				lines[i].SetDiffuserModAmount(lateDiffusionModAmount);
 				lines[i].SetDiffuserModRate(lateDiffusionModRate);
 			}
+		}
+
+		void UpdateLineSeeds()
+		{
+			delayLineSeeds = RandomBuffer::Generate(delayLineSeed, TotalLineCount * 3, crossSeed);
 		}
 
 		void UpdatePostDiffusion()

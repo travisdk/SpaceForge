@@ -4,7 +4,7 @@
 #pragma once
 
 // Cloud Seed is written for MSVC. Force-included (on other compilers only) in front of Cloud
-// Seed, so its sources can stay unmodified.
+// Seed, so its sources need no changes for this.
 #include <cmath>
 #include <cstdio>
 

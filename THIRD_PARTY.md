@@ -3,7 +3,7 @@
 SpaceForge 2 is licensed under the GNU AGPLv3 (see `LICENSE`). Everything below is compatible
 with it. Licenses verified 2026-10-23 by reading every vendored file's header.
 
-## Vendored engines (`third_party/`, copied unmodified)
+## Vendored engines (`third_party/`)
 
 | Name | Source | Version | License | Purpose |
 |---|---|---|---|---|
@@ -24,6 +24,15 @@ Notes:
 - The parts of stmlib with other licenses (`ui/event_queue.h` GPLv3, `utils/crc32.h`,
   `utils/murmurhash3.h`, `third_party/STM`, `programming/serial`) are hardware/UI code that the
   Clouds DSP does not use, and are not copied.
+- **One change** to Cloud Seed, needed for real-time use in a plug-in (marked "SpaceForge 2:" in
+  the code): `DSP/ReverbChannel.h` caches the per-line random values and regenerates them only
+  when a seed changes. The original regenerated them (allocating a `std::vector`) on every
+  decay, size or modulation change, which must not happen on the audio thread. The sound is
+  unchanged: the same values are produced from the same seeds. Clouds and stmlib are unmodified.
+- Known Clouds issues, found by AddressSanitizer, to fix in phase 3 before Clouds goes into the
+  plug-in: (1) with its dry/wet parameter at exactly 1.0 the output cross-fade reads one entry
+  past `lut_xfade_in`/`lut_xfade_out` (avoidable: keep dry/wet below 1); (2) a grain envelope at
+  exactly its peak reads one entry past `lut_window` (`grain.h`, needs a one-line clamp).
 - Only build glue lives outside `third_party/`: `source/compat/CloudSeedCompat.h` supplies
   `strcpy_s` and `std::sinf`/`sqrtf`/`expf`, which Cloud Seed expects from MSVC, to other
   compilers; Clouds is built with its author's desktop define `TEST`.
