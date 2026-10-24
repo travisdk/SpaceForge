@@ -1,0 +1,10 @@
+{
+    "name": "Molten Chrome",
+    "mode": "Plate",
+    "space": 1,
+    "echo": 0.52,
+    "motion": 0.58,
+    "tone": 0.87,
+    "mix": 0.4,
+    "freeze": false
+}

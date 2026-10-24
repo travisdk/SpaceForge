@@ -1,0 +1,10 @@
+{
+    "name": "Hoarfrost",
+    "mode": "Spectral",
+    "space": 0.71,
+    "echo": 0.53,
+    "motion": 0.3,
+    "tone": 0.79,
+    "mix": 0.4,
+    "freeze": false
+}

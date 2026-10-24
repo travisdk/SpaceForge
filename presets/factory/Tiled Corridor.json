@@ -1,0 +1,10 @@
+{
+    "name": "Tiled Corridor",
+    "mode": "Hall",
+    "space": 0.35,
+    "echo": 0.02,
+    "motion": 0.61,
+    "tone": 0.82,
+    "mix": 0.4,
+    "freeze": false
+}

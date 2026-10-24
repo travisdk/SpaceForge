@@ -56,6 +56,11 @@ NoiseBaseline noiseBaseline (const Stereo& tail, size_t from, size_t to, double 
 // 170 ms frames, the average difference in dB. Coarse on purpose, so random fine detail averages
 // out and only real changes (scattered fragments, other colour) remain. 0 = identical.
 double spectroTemporalDifferenceDb (const Stereo& a, const Stereo& b, double sampleRate, size_t from, size_t to);
+// The same, in two steps, for comparing many renders without keeping them: each render's
+// octave-band levels per frame, then the average difference between two such pictures.
+using BandFrames = std::vector<std::vector<double>>;
+BandFrames bandFrames (const Stereo& s, double sampleRate, size_t from, size_t to);
+double bandFramesDifferenceDb (const BandFrames& a, const BandFrames& b);
 
 // How much a tail moves: in octave bands 250 Hz..4 kHz, frames of ~43 ms, each band's level
 // with its straight decay line (dB against time) taken out; the RMS of what is left, averaged

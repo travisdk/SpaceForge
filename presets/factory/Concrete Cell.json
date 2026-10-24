@@ -1,0 +1,10 @@
+{
+    "name": "Concrete Cell",
+    "mode": "Hall",
+    "space": 0.07,
+    "echo": 0,
+    "motion": 0.21,
+    "tone": 0.66,
+    "mix": 0.4,
+    "freeze": false
+}

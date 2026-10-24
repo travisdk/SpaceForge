@@ -93,7 +93,11 @@ void SpaceForgeProcessor::prepareToPlay (double sampleRate, int)
 
 void SpaceForgeProcessor::updateEngine()
 {
-    engine.setMacros ({ spaceValue->load(), echoValue->load(), motionValue->load(), toneValue->load(), currentMode() });
+    const dsp::MacroPositions macros { spaceValue->load(), echoValue->load(), motionValue->load(), toneValue->load(), currentMode() };
+    if (jumpRequested.exchange (false))
+        engine.jumpToMacros (macros);
+    else
+        engine.setMacros (macros);
     engine.setMix (mixValue->load());
     engine.setFreeze (freezeValue->load() >= 0.5f);
 }
@@ -115,6 +119,24 @@ void SpaceForgeProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::
     // Mono in: the single input channel feeds both outputs.
     if (getTotalNumInputChannels() == 1)
         buffer.copyFrom (1, 0, buffer, 0, 0, numSamples);
+
+    // Sorting: a test sound instead of the input, looped; after a preset change it starts again
+    // from the top once the old room is gone (the engine's fade out, 20 ms).
+    if (const int sound = auditionSound.load(); sound >= 0 && sound < (int) auditionSounds.size())
+    {
+        if (auditionRestart.exchange (false))
+            auditionPos = -(juce::int64) (0.03 * getSampleRate());
+        const auto& audio = auditionSounds[(size_t) sound].audio;
+        const auto length = (juce::int64) audio.size();
+        for (int i = 0; i < numSamples; ++i, ++auditionPos)
+        {
+            if (auditionPos >= length)
+                auditionPos = 0;
+            const bool playing = auditionPos >= 0;
+            buffer.setSample (0, i, playing ? audio.l[(size_t) auditionPos] : 0.0f);
+            buffer.setSample (1, i, playing ? audio.r[(size_t) auditionPos] : 0.0f);
+        }
+    }
 
     updateEngine();
     if (auto* head = getPlayHead())
@@ -164,6 +186,7 @@ void SpaceForgeProcessor::getStateInformation (juce::MemoryBlock& destData)
     if (auto xml = state.createXml())
     {
         xml->setAttribute ("stateVersion", kStateVersion);
+        xml->setAttribute ("preset", currentPreset.name);
         copyXmlToBinary (*xml, destData);
     }
 }
@@ -199,8 +222,70 @@ void SpaceForgeProcessor::setStateInformation (const void* data, int sizeInBytes
         clean.appendChild (juce::ValueTree ("PARAM", { { "id", ranged->getParameterID() }, { "value", value } }), nullptr);
     }
     apvts.replaceState (clean);
+    // The preset's name (shown, never sound): the controls as loaded are its values, so "*" only
+    // appears once something is turned.
+    currentPreset.name = presets::sanitiseName (xml->getStringAttribute ("preset", "Init"));
+    if (currentPreset.name.isEmpty())
+        currentPreset.name = "Init";
+    currentPreset.mode = currentMode();
+    currentPreset.space = spaceValue->load();
+    currentPreset.echo = echoValue->load();
+    currentPreset.motion = motionValue->load();
+    currentPreset.tone = toneValue->load();
+    currentPreset.mix = mixValue->load();
+    currentPreset.freeze = freezeValue->load() >= 0.5f;
     // Tells the host (CLAP: a parameter rescan) that every value may have changed.
     updateHostDisplay (ChangeDetails().withProgramChanged (true));
+}
+
+void SpaceForgeProcessor::applyPreset (const Preset& preset)
+{
+    auto set = [this] (const char* id, float value) {
+        if (auto* param = apvts.getParameter (id))
+            param->setValueNotifyingHost (param->convertTo0to1 (value));
+    };
+    set (plugin::kModeId, (float) preset.mode);
+    set (plugin::kSpaceId, preset.space);
+    set (plugin::kEchoId, preset.echo);
+    set (plugin::kMotionId, preset.motion);
+    set (plugin::kToneId, preset.tone);
+    set (plugin::kMixId, preset.mix);
+    set (plugin::kFreezeId, preset.freeze ? 1.0f : 0.0f);
+    currentPreset = preset;
+    jumpRequested.store (true); // after the values, so the audio thread jumps to the new ones
+    restartAudition();
+}
+
+bool SpaceForgeProcessor::presetUnchanged() const
+{
+    Preset now = currentPreset;
+    now.mode = currentMode();
+    now.space = spaceValue->load();
+    now.echo = echoValue->load();
+    now.motion = motionValue->load();
+    now.tone = toneValue->load();
+    now.mix = mixValue->load();
+    now.freeze = freezeValue->load() >= 0.5f;
+    return now.sameSound (currentPreset);
+}
+
+void SpaceForgeProcessor::startAudition()
+{
+    if (! auditionSounds.empty())
+        return;
+    const double rate = getSampleRate() > 0.0 ? getSampleRate() : 48000.0;
+    // Each sound followed by 6 s of its tail, then again. The pad first: it shows colour best.
+    auditionSounds = { analysis::makePad (rate, 6.0), analysis::makeBleeps (rate, 6.0), analysis::makeSynthFigure (rate, 6.0),
+                       analysis::makeClick (rate, 6.0), analysis::makeHiHats (rate, 6.0) };
+    jassert ((int) auditionSounds.size() == kNumAuditionSounds);
+    auditionSound.store (0);
+    restartAudition();
+}
+
+juce::String SpaceForgeProcessor::auditionSoundName (int index) const
+{
+    static const char* names[kNumAuditionSounds] = { "pad", "bleeps", "synth-figur", "klik", "hi-hat" };
+    return juce::isPositiveAndBelow (index, kNumAuditionSounds) ? names[index] : "";
 }
 
 juce::AudioProcessorEditor* SpaceForgeProcessor::createEditor()

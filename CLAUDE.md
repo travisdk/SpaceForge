@@ -15,7 +15,7 @@ Tekstur-effekt til minimal/hypnotisk techno og ambient: enorme, levende rum, ekk
 3. **En test der er grøn, er ikke det samme som en knap der virker.** Tests skal kræve en hørbar minimumseffekt, ikke kun den rigtige retning.
 4. **Mål selv, før Henrik lytter.** Vis tallene. Henriks ører bruges på smag, ikke på at finde ud af om noget virker.
 5. **Erklær aldrig noget for løst uden bevis** i form af en tabel eller måling, som Henrik kan se.
-6. **Presets laves af Henrik med ørerne**, ikke af Claude Code på papiret.
+6. **CC foreslår preset-kandidater, Henrik vælger dem med ørerne.** Kandidaterne skal bestå målingerne (lydstyrke ±1 dB, ingen sus med stille input, ingen der ligner hinanden for meget); kun dem Henrik beholder i sorteringstilstanden bliver factory-presets
 
 ## Motorerne vi bygger på
 
@@ -81,7 +81,8 @@ Regler:
 
 ## Presets
 
-- Kun **Init** som factory-preset til at starte med. Henrik laver resten ved at dreje og gemme
+- Factory-presets er **Init** plus de kandidater Henrik har beholdt (K) i sorteringstilstanden (standalone startet med `--sort`). CC foreslår navne ud fra lyden; Henrik retter dem
+- Ingen preset-navne fra SuperMassive, SOL eller Cloud Seed (og ingen stjerne-, galakse- eller stjernebilled-navne)
 - JSON, én fil pr. preset, brugerpresets i brugerens dokumentmappe
 - Preset-skift er **rent**: lyden skifter straks med en kort crossfade (30 til 50 ms), ingen spillover. Knap-animationen er kun visuel og må aldrig få lyden til at glide. Delaytider crossfades i stedet for at glide (ingen pitch-sweep)
 - Terningen flytter de fire makroer synligt (ca. 250 ms animation), mindst to af dem mærkbart. Mode, Mix og Freeze røres aldrig. Fortryd for de sidste 10 kast. Ændret preset markeres med *
@@ -116,7 +117,7 @@ Kopieret kode tilpasses det nye projekt; kopiér ikke hele filer blindt. Notér 
 3. **Clouds** ind foran Cloud Seed. **Stop: Henrik lytter**
 4. **Makro-mapping** med fælles skala og kontrakt-tests (retning + hørbar minimumseffekt). Vis tabel med værdier pr. knapposition
 5. **UI** overført fra `../SpaceForge`, tilpasset de seks kontroller
-6. **Presets**: Henrik laver dem; du bygger kun værktøjerne
+6. **Presets**: CC genererer målte kandidater, Henrik sorterer dem med K/S, CC foreslår navne
 7. Polering, pluginval, release
 
 Afslut hver fase med: build uden warnings, tests grønne, målinger vist, og en kort beskrivelse på jævnt dansk af hvad Henrik skal lytte efter.

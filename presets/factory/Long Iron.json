@@ -1,0 +1,10 @@
+{
+    "name": "Long Iron",
+    "mode": "Plate",
+    "space": 0.92,
+    "echo": 0.04,
+    "motion": 0.31,
+    "tone": 0.58,
+    "mix": 0.4,
+    "freeze": false
+}

@@ -104,6 +104,10 @@ target_link_libraries(spaceforge_analysis
 add_executable(sf2_render tools/render/RenderMain.cpp)
 target_link_libraries(sf2_render PRIVATE spaceforge_analysis juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)
 
+# sf2_candidates: measured preset candidates for one Mode (presets/candidates), sorted by ear.
+add_executable(sf2_candidates tools/candidates/CandidatesMain.cpp)
+target_link_libraries(sf2_candidates PRIVATE spaceforge_analysis juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)
+
 # ---------------------------------------------------------------------------------------------
 juce_add_plugin(SpaceForge2
     COMPANY_NAME "Henrik Juhl"
@@ -126,7 +130,18 @@ target_sources(SpaceForge2 PRIVATE
     source/plugin/PluginProcessor.cpp
     source/plugin/PluginEditor.cpp
     source/plugin/ui/CloudView.cpp
-    source/plugin/ui/MacroKnob.cpp)
+    source/plugin/ui/MacroKnob.cpp
+    source/presets/Preset.cpp
+    source/presets/PresetLibrary.cpp
+    source/presets/CandidateSorter.cpp)
+
+# The factory presets (Init and the candidates Henrik kept), compiled into the plug-in.
+file(GLOB SPACEFORGE_FACTORY_PRESETS CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/presets/factory/*.json")
+juce_add_binary_data(SpaceForgePresets HEADER_NAME SpaceForgePresets.h NAMESPACE SpaceForgePresets SOURCES ${SPACEFORGE_FACTORY_PRESETS})
+set_target_properties(SpaceForgePresets PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+# The sorting mode's default folder (standalone --sort without a folder): the source tree's candidates.
+target_compile_definitions(SpaceForge2 PRIVATE SPACEFORGE_CANDIDATES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/presets/candidates")
 
 # SPACEFORGE_VERSION_STRING in SpaceForgeVersion.h: "git describe --tags --dirty", refreshed at
 # every build; the project VERSION when git or tags are missing. (From SpaceForge 1.)
@@ -153,7 +168,8 @@ endif()
 target_link_libraries(SpaceForge2
     PRIVATE
         juce::juce_audio_utils
-        spaceforge_dsp
+        spaceforge_analysis
+        SpaceForgePresets
     PUBLIC
         juce::juce_recommended_config_flags
         juce::juce_recommended_lto_flags

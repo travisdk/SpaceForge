@@ -1,0 +1,10 @@
+{
+    "name": "Slow Melt",
+    "mode": "Smear",
+    "space": 0.65,
+    "echo": 0.06,
+    "motion": 0.63,
+    "tone": 0.12,
+    "mix": 0.4,
+    "freeze": false
+}

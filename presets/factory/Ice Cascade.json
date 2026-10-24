@@ -1,0 +1,10 @@
+{
+    "name": "Ice Cascade",
+    "mode": "Spectral",
+    "space": 1,
+    "echo": 0.9,
+    "motion": 0.24,
+    "tone": 0.92,
+    "mix": 0.4,
+    "freeze": false
+}

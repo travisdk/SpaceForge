@@ -4,7 +4,9 @@
 #pragma once
 
 #include <juce_audio_processors/juce_audio_processors.h>
+#include "analysis/TestSignals.h"
 #include "dsp/SpaceEngine.h"
+#include "presets/Preset.h"
 
 // Granular texture (Clouds) and echoes into the room (Cloud Seed), moved by the four macros
 // Space, Echo, Motion and Tone, plus Mix and Freeze, in one of the Modes. Stereo out, mono or
@@ -49,6 +51,23 @@ public:
     float getPanPosition() const { return panPosition.load(); }
     double getBpm() const { return bpm.load(); }
 
+    // A preset: every control jumps to its value (the DAW sees it), and the sound changes cleanly
+    // (SpaceEngine::jumpToMacros: a short fade, nothing of the old tail, no glide). Message thread.
+    void applyPreset (const spaceforge::Preset&);
+    const juce::String& presetName() const { return currentPreset.name; }
+    // Whether the controls still say what the preset says (the editor shows * when not).
+    bool presetUnchanged() const;
+
+    // The sorting mode's test sounds (standalone only): the input is replaced by one of them,
+    // looped. startAudition builds them (message thread, allocates); restartAudition plays the
+    // sound from its start once the room has been emptied (after a preset change).
+    void startAudition();
+    void setAuditionSound (int index) { auditionSound.store (std::clamp (index, 0, (int) auditionSounds.size() - 1)); restartAudition(); }
+    void restartAudition() { auditionRestart.store (true); }
+    int auditionSoundIndex() const { return auditionSound.load(); }
+    juce::String auditionSoundName (int index) const;
+    static constexpr int kNumAuditionSounds = 5;
+
     // Saved with every state, so later versions know what they are reading.
     static constexpr int kStateVersion = 1;
     // A host hands us whatever a project file contains: anything larger is rejected unread.
@@ -72,6 +91,13 @@ private:
     std::atomic<float> outputLevel { 0.0f }, panPosition { 0.0f };
     std::atomic<int> onsetCount { 0 };
     std::atomic<double> bpm { 120.0 };
+    std::atomic<bool> jumpRequested { false };
+    spaceforge::Preset currentPreset = spaceforge::presets::makeInit();
+
+    std::vector<spaceforge::analysis::TestSignal> auditionSounds; // built once, never changed after
+    std::atomic<int> auditionSound { -1 };                        // -1: the real input
+    std::atomic<bool> auditionRestart { false };
+    juce::int64 auditionPos = 0;                                   // audio thread; < 0: silence first
     float inputFast = 0.0f, inputSlow = 0.0f; // the input's envelope, per block (hits)
     int onsetHold = 0;                        // blocks until the next hit may count
 

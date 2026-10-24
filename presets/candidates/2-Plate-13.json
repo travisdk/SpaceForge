@@ -1,0 +1,10 @@
+{
+    "name": "Kandidat Plate 13",
+    "mode": "Plate",
+    "space": 1.00,
+    "echo": 0.26,
+    "motion": 0.02,
+    "tone": 0.92,
+    "mix": 0.40,
+    "freeze": false
+}

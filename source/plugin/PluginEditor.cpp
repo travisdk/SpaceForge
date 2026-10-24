@@ -10,7 +10,7 @@ using namespace spaceforge;
 namespace
 {
 constexpr float kMinScale = 0.7f, kMaxScale = 2.0f;
-constexpr int kHeaderHeight = 40, kFooterHeight = 120;
+constexpr int kHeaderHeight = 40, kPresetHeight = 36, kFooterHeight = 120;
 
 struct MacroInfo
 {
@@ -103,14 +103,203 @@ SpaceForgeEditor::SpaceForgeEditor (SpaceForgeProcessor& p)
     logo.setTooltip (juce::String ("SpaceForge 2 ") + SPACEFORGE_VERSION_STRING + " - fri software under GNU AGPLv3");
     content.addAndMakeVisible (logo);
 
+    // Presets
+    presetPrev.setTooltip ("Forrige preset");
+    presetNext.setTooltip (utf8 ("Næste preset"));
+    presetName.setTooltip ("Alle presets, efter Mode");
+    presetSave.setTooltip ("Gem knapperne som dit eget preset");
+    presetPrev.onClick = [this] { stepPreset (-1); };
+    presetNext.onClick = [this] { stepPreset (1); };
+    presetName.onClick = [this] { showPresetMenu(); };
+    presetSave.onClick = [this] { askToSave(); };
+    presetPrev.setConnectedEdges (juce::Button::ConnectedOnRight);
+    presetName.setConnectedEdges (juce::Button::ConnectedOnLeft | juce::Button::ConnectedOnRight);
+    presetNext.setConnectedEdges (juce::Button::ConnectedOnLeft);
+    for (auto* button : { &presetPrev, &presetName, &presetNext, &presetSave })
+        content.addAndMakeVisible (*button);
+
+    for (auto* label : { &sortTitle, &sortHelp })
+    {
+        label->setJustificationType (juce::Justification::centred);
+        content.addChildComponent (*label);
+    }
+    sortTitle.setFont (theme::font (17.0f, true));
+    sortTitle.setColour (juce::Label::textColourId, theme::glow);
+    sortHelp.setFont (theme::font (13.0f));
+    sortHelp.setColour (juce::Label::textColourId, theme::dimText);
+
     timerCallback();
     startTimerHz (15);
 
     setResizable (true, true);
-    setResizeLimits (juce::roundToInt (kWidth * kMinScale), juce::roundToInt (kHeight * kMinScale),
-                     juce::roundToInt (kWidth * kMaxScale), juce::roundToInt (kHeight * kMaxScale));
-    getConstrainer()->setFixedAspectRatio ((double) kWidth / (double) kHeight);
-    setSize (kWidth, kHeight);
+    applySizeLimits();
+    if (const auto folder = sortFolderFromCommandLine(); folder != juce::File())
+        startSorting (folder);
+    else
+        resized();
+}
+
+void SpaceForgeEditor::applySizeLimits()
+{
+    setResizeLimits (juce::roundToInt (kWidth * kMinScale), juce::roundToInt (designHeight() * kMinScale),
+                     juce::roundToInt (kWidth * kMaxScale), juce::roundToInt (designHeight() * kMaxScale));
+    getConstrainer()->setFixedAspectRatio ((double) kWidth / (double) designHeight());
+    setSize (kWidth, designHeight());
+}
+
+void SpaceForgeEditor::loadPreset (int index)
+{
+    if (const auto* preset = presetLibrary.at (index))
+    {
+        processor.applyPreset (*preset);
+        timerCallback();
+    }
+}
+
+void SpaceForgeEditor::stepPreset (int delta)
+{
+    const int n = presetLibrary.size();
+    if (n == 0)
+        return;
+    const int now = presetLibrary.indexOf (processor.presetName());
+    loadPreset (now < 0 ? 0 : ((now + delta) % n + n) % n);
+}
+
+void SpaceForgeEditor::showPresetMenu()
+{
+    juce::PopupMenu menu;
+    std::array<juce::PopupMenu, dsp::kNumModes> byMode;
+    juce::PopupMenu user;
+    const int current = presetLibrary.indexOf (processor.presetName());
+    for (int i = 0; i < presetLibrary.size(); ++i)
+    {
+        const auto& p = *presetLibrary.at (i);
+        if (p.name == "Init" && p.isFactory)
+            menu.addItem (i + 1, p.name, true, i == current);
+        else if (p.isFactory)
+            byMode[(size_t) p.mode].addItem (i + 1, p.name, true, i == current);
+        else
+            user.addItem (i + 1, p.name, true, i == current);
+    }
+    for (int m = 0; m < dsp::kNumModes; ++m)
+        if (byMode[(size_t) m].getNumItems() > 0)
+            menu.addSubMenu (dsp::modeSetup (m).name, byMode[(size_t) m]);
+    if (user.getNumItems() > 0)
+    {
+        menu.addSeparator();
+        menu.addSubMenu ("Mine", user);
+    }
+    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (presetName), [safe = juce::Component::SafePointer (this)] (int chosen) {
+        if (safe != nullptr && chosen > 0)
+            safe->loadPreset (chosen - 1);
+    });
+}
+
+void SpaceForgeEditor::askToSave()
+{
+    saveDialog = std::make_unique<juce::AlertWindow> ("Gem preset", "Navn:", juce::MessageBoxIconType::NoIcon, this);
+    saveDialog->addTextEditor ("name", processor.presetName() == "Init" ? juce::String() : processor.presetName());
+    saveDialog->addButton ("Gem", 1, juce::KeyPress (juce::KeyPress::returnKey));
+    saveDialog->addButton ("Fortryd", 0, juce::KeyPress (juce::KeyPress::escapeKey));
+    saveDialog->enterModalState (true, juce::ModalCallbackFunction::create ([safe = juce::Component::SafePointer (this)] (int result) {
+        if (safe == nullptr || safe->saveDialog == nullptr)
+            return;
+        const auto name = presets::sanitiseName (safe->saveDialog->getTextEditorContents ("name"));
+        safe->saveDialog.reset();
+        if (result != 1 || name.isEmpty())
+            return;
+        const auto& apvts = safe->processor.parameters();
+        Preset p;
+        p.name = name;
+        p.mode = safe->shownMode();
+        p.space = valueOf (apvts, plugin::kSpaceId);
+        p.echo = valueOf (apvts, plugin::kEchoId);
+        p.motion = valueOf (apvts, plugin::kMotionId);
+        p.tone = valueOf (apvts, plugin::kToneId);
+        p.mix = valueOf (apvts, plugin::kMixId);
+        p.freeze = valueOf (apvts, plugin::kFreezeId) >= 0.5f;
+        if (const int index = safe->presetLibrary.saveUserPreset (p); index >= 0)
+            safe->loadPreset (index);
+    }));
+}
+
+juce::File SpaceForgeEditor::sortFolderFromCommandLine()
+{
+    if (! juce::JUCEApplicationBase::isStandaloneApp())
+        return {};
+    const auto args = juce::JUCEApplicationBase::getCommandLineParameterArray();
+    const int at = args.indexOf ("--sort");
+    if (at < 0)
+        return {};
+    if (at + 1 < args.size() && ! args[at + 1].startsWith ("-"))
+        return juce::File::getCurrentWorkingDirectory().getChildFile (args[at + 1]);
+    return juce::File (SPACEFORGE_CANDIDATES_DIR);
+}
+
+void SpaceForgeEditor::startSorting (const juce::File& folder)
+{
+    sorter = std::make_unique<CandidateSorter> (folder);
+    processor.startAudition();
+    sortTitle.setVisible (true);
+    sortHelp.setVisible (true);
+    setWantsKeyboardFocus (true);
+    applySizeLimits();
+    showCandidate();
+    grabKeyboardFocus();
+}
+
+void SpaceForgeEditor::showCandidate()
+{
+    if (sorter == nullptr)
+        return;
+    const int kept = sorter->count (CandidateSorter::Decision::keep);
+    const auto sound = processor.auditionSoundName (processor.auditionSoundIndex());
+    if (sorter->size() == 0)
+    {
+        sortTitle.setText ("Ingen kandidater i " + sorter->reviewFile().getParentDirectory().getFullPathName(), juce::dontSendNotification);
+        sortHelp.setText ({}, juce::dontSendNotification);
+        return;
+    }
+    if (const auto* candidate = sorter->current())
+    {
+        processor.applyPreset (*candidate);
+        sortTitle.setText ("Kandidat " + juce::String (sorter->position() + 1) + " af " + juce::String (sorter->size()) + "  ·  "
+                               + dsp::modeSetup (candidate->mode).name + "  ·  beholdt " + juce::String (kept),
+                           juce::dontSendNotification);
+        sortHelp.setText (utf8 ("K behold   ·   S spring over   ·   ← fortryd   ·   1-5 testlyd (nu: ") + sound + ")   ·   R forfra",
+                          juce::dontSendNotification);
+    }
+    else
+    {
+        sortTitle.setText (utf8 ("Færdig: ") + juce::String (kept) + " beholdt af " + juce::String (sorter->size()), juce::dontSendNotification);
+        sortHelp.setText (utf8 ("← fortryd den sidste   ·   valgene er gemt i ") + sorter->reviewFile().getFullPathName(), juce::dontSendNotification);
+    }
+}
+
+bool SpaceForgeEditor::keyPressed (const juce::KeyPress& key)
+{
+    if (sorter == nullptr)
+        return false;
+    const auto c = juce::CharacterFunctions::toUpperCase (key.getTextCharacter());
+    if (c == 'K' || c == 'S')
+        sorter->decide (c == 'K' ? CandidateSorter::Decision::keep : CandidateSorter::Decision::skip);
+    else if (key.isKeyCode (juce::KeyPress::leftKey))
+        sorter->undo();
+    else if (c >= '1' && c < '1' + SpaceForgeProcessor::kNumAuditionSounds)
+    {
+        processor.setAuditionSound ((int) (c - '1'));
+        showCandidate();
+        return true;
+    }
+    else if (c == 'R')
+    {
+        processor.restartAudition();
+        return true;
+    }
+    else
+        return false;
+    showCandidate();
+    return true;
 }
 
 SpaceForgeEditor::~SpaceForgeEditor()
@@ -136,6 +325,10 @@ void SpaceForgeEditor::timerCallback()
         pan = s.motionPanBars == 0 ? utf8 ("pan ½ takt") : "pan " + juce::String (s.motionPanBars) + (s.motionPanBars == 1 ? " takt" : " takter");
     macros[2]->setScale ("stille", "levende", motion, pan);
     macros[3]->setScale (utf8 ("mørk"), "lys", tone);
+
+    const auto shownName = processor.presetName() + (processor.presetUnchanged() ? "" : " *");
+    if (presetName.getButtonText() != shownName)
+        presetName.setButtonText (shownName);
 
     mixValue.setText (juce::String (juce::roundToInt (valueOf (apvts, plugin::kMixId) * 100.0f)) + " %", juce::dontSendNotification);
     const bool frozen = valueOf (apvts, plugin::kFreezeId) >= 0.5f;
@@ -176,8 +369,14 @@ void SpaceForgeEditor::paint (juce::Graphics& g)
 void SpaceForgeEditor::resized()
 {
     // lay out at the design size, then scale to the window
-    content.setBounds (0, 0, kWidth, kHeight);
+    content.setBounds (0, 0, kWidth, designHeight());
     auto area = content.getLocalBounds().reduced (16);
+    if (sorter != nullptr)
+    {
+        auto strip = area.removeFromBottom (kSortHeight).withTrimmedTop (8);
+        sortTitle.setBounds (strip.removeFromTop (28));
+        sortHelp.setBounds (strip.removeFromTop (22));
+    }
 
     auto header = area.removeFromTop (kHeaderHeight);
     logo.setBounds (header.removeFromLeft (230).withTrimmedLeft (2));
@@ -185,6 +384,14 @@ void SpaceForgeEditor::resized()
     const int modeWidth = modes.getWidth() / dsp::kNumModes;
     for (auto& button : modeButtons)
         button->setBounds (modes.removeFromLeft (modeWidth));
+
+    // the preset bar, centred under the Modes
+    auto bar = area.removeFromTop (kPresetHeight).withSizeKeepingCentre (400, 26);
+    presetSave.setBounds (bar.removeFromRight (64));
+    bar.removeFromRight (8);
+    presetPrev.setBounds (bar.removeFromLeft (32));
+    presetNext.setBounds (bar.removeFromRight (32));
+    presetName.setBounds (bar);
 
     // footer: Mix and Freeze side by side in the middle
     auto footer = area.removeFromBottom (kFooterHeight).withSizeKeepingCentre (320, kFooterHeight);

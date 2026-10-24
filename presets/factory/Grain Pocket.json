@@ -1,0 +1,10 @@
+{
+    "name": "Grain Pocket",
+    "mode": "Sky",
+    "space": 0.01,
+    "echo": 0.03,
+    "motion": 0.74,
+    "tone": 0.4,
+    "mix": 0.4,
+    "freeze": false
+}

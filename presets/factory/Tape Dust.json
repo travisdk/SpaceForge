@@ -1,0 +1,10 @@
+{
+    "name": "Tape Dust",
+    "mode": "Smear",
+    "space": 0.01,
+    "echo": 0.08,
+    "motion": 0.1,
+    "tone": 0.14,
+    "mix": 0.4,
+    "freeze": false
+}

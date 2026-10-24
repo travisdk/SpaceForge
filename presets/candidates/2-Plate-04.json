@@ -1,0 +1,10 @@
+{
+    "name": "Kandidat Plate 04",
+    "mode": "Plate",
+    "space": 0.41,
+    "echo": 0.01,
+    "motion": 0.06,
+    "tone": 0.34,
+    "mix": 0.40,
+    "freeze": false
+}

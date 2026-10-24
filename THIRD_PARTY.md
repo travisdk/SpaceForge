@@ -50,6 +50,10 @@ Notes:
   Together these were the white noise Henrik heard when playing softly: the sky's feedback loop
   kept the rounding alive (measured: 6-28 dB of hiss in the treble, tails lost below -90 dBFS;
   after: the same tail at any level, the engine's own noise at -140 dBFS).
+  - Clouds, `clouds/dsp/correlator.cc`: the WSOLA search shifted a 32-bit word by 32 when a
+    candidate fell on a word boundary, which is undefined in C++ (found by UBSan). On the
+    module's ARM it gives 0; on x86 it gave the word itself and spoiled that comparison. Now
+    the shift is skipped there, so it behaves as on the module.
   - Clouds, `clouds/dsp/grain.h`: the grain window lookup is clamped just below the end of
     `lut_window`. At a grain's peak it read one entry past the table (found by
     AddressSanitizer).
@@ -77,4 +81,4 @@ Notes:
 
 | From | What | License |
 |---|---|---|
-| `../SpaceForge` (SpaceForge 1, same author) | CMake setup, `cmake/GitVersion.cmake`, test helpers in `tests/TestUtils.h`, bus layout and state handling patterns; the look and the interface (`source/plugin/ui/Theme.h`, `MacroKnob`, `CloudView`, the editor layout, `tools/screenshot`), adapted to the six controls | AGPLv3 |
+| `../SpaceForge` (SpaceForge 1, same author) | CMake setup, `cmake/GitVersion.cmake`, test helpers in `tests/TestUtils.h`, bus layout and state handling patterns; the look and the interface (`source/plugin/ui/Theme.h`, `MacroKnob`, `CloudView`, the editor layout, `tools/screenshot`), adapted to the six controls; the preset file reading and writing (`source/presets/Preset.*`, from `presets/Preset.*`), adapted to the six controls and the Modes | AGPLv3 |

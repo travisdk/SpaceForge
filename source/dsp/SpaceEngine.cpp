@@ -231,6 +231,7 @@ void SpaceEngine::reset()
     if (const int wanted = std::clamp (macroTarget.mode, 0, kNumModes - 1); wanted != activeMode)
         switchMode (wanted);
     modeFading = false;
+    jumpPending = false;
     modeFade = 1.0f;
     left->ClearBuffers();
     right->ClearBuffers();
@@ -288,6 +289,7 @@ void SpaceEngine::switchMode (int mode)
     gains = gainsNow();
     skyLevel = 0.0f;
     modeFading = false;
+    jumpPending = false;
 }
 
 void SpaceEngine::process (const float* inputL, const float* inputR, float* outL, float* outR, int numSamples)
@@ -340,9 +342,9 @@ void SpaceEngine::process (const float* inputL, const float* inputR, float* outL
 
 void SpaceEngine::processChunk()
 {
-    // A new Mode: fade out, switch once silent, fade in (in the loop at the end).
+    // A new Mode or a preset: fade out, switch once silent, fade in (in the loop at the end).
     const int wantedMode = std::clamp (macroTarget.mode, 0, kNumModes - 1);
-    if (wantedMode != activeMode)
+    if (wantedMode != activeMode || jumpPending)
     {
         modeFading = true;
         if (modeFade <= 0.0f)

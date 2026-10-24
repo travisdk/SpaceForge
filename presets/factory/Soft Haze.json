@@ -1,0 +1,10 @@
+{
+    "name": "Soft Haze",
+    "mode": "Sky",
+    "space": 0.29,
+    "echo": 0.05,
+    "motion": 0.43,
+    "tone": 0.54,
+    "mix": 0.4,
+    "freeze": false
+}

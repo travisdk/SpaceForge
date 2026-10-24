@@ -1,0 +1,10 @@
+{
+    "name": "Glacier",
+    "mode": "Spectral",
+    "space": 0.7,
+    "echo": 0.12,
+    "motion": 0.49,
+    "tone": 0.32,
+    "mix": 0.4,
+    "freeze": false
+}

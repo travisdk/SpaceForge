@@ -4,7 +4,7 @@
 // The Modes (Henrik's rules): Space at 50 % is a medium room in every Mode and the text shows the
 // measured seconds; every Mode is as loud as the others; no Mode adds hiss; every knob works in
 // its direction with an audible minimum in every Mode; a Mode change is clean (no click, nothing
-// of the old tail, no allocation).
+// of the old tail, no allocation), and so is a preset change within a Mode.
 
 #include <atomic>
 #include <cmath>
@@ -195,8 +195,10 @@ void testCleanSwitch()
         return peak;
     };
     std::printf ("Mode change at 1.5 s (input stops there): click / tail left 0.1 s later (dB against before):\n");
-    for (int to = 1; to < dsp::kNumModes; ++to)
+    // to == kNumModes: a preset in the same Mode (jumpToMacros), every knob somewhere else.
+    for (int to = 1; to <= dsp::kNumModes; ++to)
     {
+        const bool preset = to == dsp::kNumModes;
         auto engine = makeEngine (knobs (0, 0.9f));
         engine->setMix (1.0f);
         engine->reset();
@@ -205,7 +207,9 @@ void testCleanSwitch()
         for (size_t pos = 0; pos + 256 <= input.l.size(); pos += 256)
         {
             countAllocations = pos >= at (1.4);
-            if (pos >= at (1.5))
+            if (pos >= at (1.5) && preset && pos < at (1.5) + 256)
+                engine->jumpToMacros (knobs (0, 0.3f, 0.6f, 0.9f, 0.1f));
+            else if (pos >= at (1.5) && ! preset)
                 engine->setMacros (knobs (to, 0.9f));
             engine->process (&input.l[pos], &input.r[pos], &out.l[pos], &out.r[pos], 256);
         }
@@ -213,7 +217,7 @@ void testCleanSwitch()
         const double before = analysis::rmsDb (out, at (1.3), at (1.5));
         const double after = analysis::rmsDb (out, at (1.6), at (1.7));
         const double click = 20.0 * std::log10 (highPeak (out, at (1.5), at (1.6)) / std::max (highPeak (out, at (1.2), at (1.5)), 1.0e-9f));
-        std::printf ("  Sky -> %-9s click %+5.1f dB, tail %+6.1f dB, allocations %d\n", dsp::modeSetup (to).name, click, after - before, allocations.load());
+        std::printf ("  Sky -> %-9s click %+5.1f dB, tail %+6.1f dB, allocations %d\n", preset ? "preset" : dsp::modeSetup (to).name, click, after - before, allocations.load());
         CHECK (click < 0.0);
         CHECK (after - before < -40.0);
         CHECK (allocations.load() == 0);

@@ -1,0 +1,10 @@
+{
+    "name": "Basement Pulse",
+    "mode": "Hall",
+    "space": 0.28,
+    "echo": 0.23,
+    "motion": 0.65,
+    "tone": 0.05,
+    "mix": 0.4,
+    "freeze": false
+}

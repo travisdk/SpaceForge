@@ -1,0 +1,10 @@
+{
+    "name": "Kandidat Spectral 10",
+    "mode": "Spectral",
+    "space": 0.71,
+    "echo": 0.53,
+    "motion": 0.30,
+    "tone": 0.79,
+    "mix": 0.40,
+    "freeze": false
+}

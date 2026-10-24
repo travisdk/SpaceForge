@@ -365,10 +365,10 @@ NoiseBaseline noiseBaseline (const Stereo& tail, size_t from, size_t to, double 
     return { ringingDb (s, sampleRate, 0, std::min (n, to - from)), flutterDb (s, sampleRate) };
 }
 
-double spectroTemporalDifferenceDb (const Stereo& a, const Stereo& b, double sampleRate, size_t from, size_t to)
+BandFrames bandFrames (const Stereo& s, double sampleRate, size_t from, size_t to)
 {
     const auto window = (size_t) 1 << (size_t) std::lround (std::log2 (0.17 * sampleRate)), hop = window / 2;
-    to = std::min ({ to, a.size(), b.size() });
+    to = std::min (to, s.size());
     std::vector<double> hann (window);
     for (size_t i = 0; i < window; ++i)
         hann[i] = 0.5 - 0.5 * std::cos (2.0 * kPi * (double) i / (double) window);
@@ -376,8 +376,10 @@ double spectroTemporalDifferenceDb (const Stereo& a, const Stereo& b, double sam
     for (double hz = 125.0 / std::sqrt (2.0); hz < 12000.0; hz *= 2.0)
         edges.push_back (hz);
 
-    auto bandLevels = [&] (const Stereo& s, size_t start) {
-        std::vector<std::complex<double>> buf (window);
+    BandFrames frames;
+    std::vector<std::complex<double>> buf (window);
+    for (size_t start = from; start + window <= to; start += hop)
+    {
         for (size_t i = 0; i < window; ++i)
             buf[i] = { 0.5 * ((double) s.l[start + i] + s.r[start + i]) * hann[i], 0.0 };
         fft (buf);
@@ -390,23 +392,30 @@ double spectroTemporalDifferenceDb (const Stereo& a, const Stereo& b, double sam
                 sum += std::norm (buf[k]);
             levels[band] = 10.0 * std::log10 (std::max (sum, 1.0e-20));
         }
-        return levels;
-    };
+        frames.push_back (std::move (levels));
+    }
+    return frames;
+}
 
+double bandFramesDifferenceDb (const BandFrames& a, const BandFrames& b)
+{
     double total = 0.0;
     size_t count = 0;
-    for (size_t start = from; start + window <= to; start += hop)
-    {
-        const auto la = bandLevels (a, start), lb = bandLevels (b, start);
-        for (size_t band = 0; band < la.size(); ++band)
+    for (size_t frame = 0; frame < std::min (a.size(), b.size()); ++frame)
+        for (size_t band = 0; band < a[frame].size(); ++band)
         {
-            if (la[band] < -100.0 && lb[band] < -100.0)
+            if (a[frame][band] < -100.0 && b[frame][band] < -100.0)
                 continue;
-            total += std::abs (la[band] - lb[band]);
+            total += std::abs (a[frame][band] - b[frame][band]);
             ++count;
         }
-    }
     return count > 0 ? total / (double) count : 0.0;
+}
+
+double spectroTemporalDifferenceDb (const Stereo& a, const Stereo& b, double sampleRate, size_t from, size_t to)
+{
+    to = std::min ({ to, a.size(), b.size() });
+    return bandFramesDifferenceDb (bandFrames (a, sampleRate, from, to), bandFrames (b, sampleRate, from, to));
 }
 
 double copyStrength (const Stereo& out, const std::vector<float>& original, size_t start, double sampleRate, double minLag, double maxLag)

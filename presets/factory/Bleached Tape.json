@@ -1,0 +1,10 @@
+{
+    "name": "Bleached Tape",
+    "mode": "Smear",
+    "space": 1,
+    "echo": 0.02,
+    "motion": 0.35,
+    "tone": 0.9,
+    "mix": 0.4,
+    "freeze": false
+}

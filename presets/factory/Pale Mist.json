@@ -1,0 +1,10 @@
+{
+    "name": "Pale Mist",
+    "mode": "Sky",
+    "space": 0.44,
+    "echo": 0.1,
+    "motion": 0.13,
+    "tone": 0.9,
+    "mix": 0.4,
+    "freeze": false
+}

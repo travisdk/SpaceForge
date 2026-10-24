@@ -1,0 +1,10 @@
+{
+    "name": "Kandidat Hall 09",
+    "mode": "Hall",
+    "space": 0.57,
+    "echo": 0.35,
+    "motion": 0.25,
+    "tone": 0.97,
+    "mix": 0.40,
+    "freeze": false
+}

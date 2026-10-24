@@ -1,0 +1,10 @@
+{
+    "name": "Under Glow",
+    "mode": "Shimmer",
+    "space": 0.39,
+    "echo": 0.02,
+    "motion": 0.7,
+    "tone": 0.19,
+    "mix": 0.4,
+    "freeze": false
+}

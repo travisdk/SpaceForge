@@ -1,0 +1,10 @@
+{
+    "name": "Swaying Hall",
+    "mode": "Hall",
+    "space": 0.29,
+    "echo": 0.07,
+    "motion": 1,
+    "tone": 0.52,
+    "mix": 0.4,
+    "freeze": false
+}

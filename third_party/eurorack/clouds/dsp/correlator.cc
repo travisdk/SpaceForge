@@ -57,7 +57,11 @@ void Correlator::EvaluateNextCandidate() {
     uint32_t source_bits = source[i];
     uint32_t destination_bits = 0;
     destination_bits |= destination[i] << offset_bits;
-    destination_bits |= destination[i + 1] >> (32 - offset_bits);
+    // SpaceForge 2: a shift by 32 is undefined in C++ (x86 shifts by 0 instead, ARM gives 0);
+    // with no offset the next word contributes nothing, as on the module.
+    if (offset_bits) {
+      destination_bits |= destination[i + 1] >> (32 - offset_bits);
+    }
     uint32_t count = ~(source_bits ^ destination_bits);
     count = count - ((count >> 1) & 0x55555555);
     count = (count & 0x33333333) + ((count >> 2) & 0x33333333);

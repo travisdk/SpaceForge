@@ -48,6 +48,13 @@ public:
     void setMix (float mix01) { mixTarget = mix01; }
     void setFreeze (bool on) { freezeTarget = on; }
     void setMacros (const MacroPositions& positions) { macroTarget = positions; }
+    // A preset change: the wet signal fades out (20 ms), the knobs jump to their new positions
+    // with nothing of the old tail left, and it fades back in (as a new Mode does). No glide.
+    void jumpToMacros (const MacroPositions& positions)
+    {
+        macroTarget = positions;
+        jumpPending = true;
+    }
     const MacroPositions& macros() const { return macroTarget; }
 
     // Host tempo for the echo and the auto-pan. Without a running transport the pan runs freely
@@ -82,6 +89,7 @@ private:
     int activeMode = 0;
     float modeFade = 1.0f, modeFadeStep = 0.0f; // wet gain while a Mode changes
     bool modeFading = false;
+    bool jumpPending = false; // jumpToMacros: switch cleanly once the wet signal is silent
     double sampleRate = 48000.0;
     int chunk = 128;
     int pos = 0;

@@ -1,0 +1,10 @@
+{
+    "name": "Kandidat Sky 01",
+    "mode": "Sky",
+    "space": 0.01,
+    "echo": 0.03,
+    "motion": 0.74,
+    "tone": 0.40,
+    "mix": 0.40,
+    "freeze": false
+}

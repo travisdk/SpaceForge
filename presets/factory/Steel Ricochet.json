@@ -1,0 +1,10 @@
+{
+    "name": "Steel Ricochet",
+    "mode": "Plate",
+    "space": 0.45,
+    "echo": 0.92,
+    "motion": 0.14,
+    "tone": 0.54,
+    "mix": 0.4,
+    "freeze": false
+}

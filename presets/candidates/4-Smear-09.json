@@ -1,0 +1,10 @@
+{
+    "name": "Kandidat Smear 09",
+    "mode": "Smear",
+    "space": 0.71,
+    "echo": 0.72,
+    "motion": 0.19,
+    "tone": 0.38,
+    "mix": 0.40,
+    "freeze": false
+}
