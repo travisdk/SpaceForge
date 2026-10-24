@@ -39,10 +39,12 @@ Motorernes indre ændres kun, hvor det er nødvendigt for at få dem til at kør
 ## Signalkæde
 
 ```
-Input -> Clouds (tekstur) -> Cloud Seed (rum og ekko) -> Tone/finish -> Mix
+Input -> Cloud Seed (rum og ekko) -> Tone/finish -> Mix
+               ^            |
+               +-- Clouds --+   (skyen: kornene tager fra rummets hale og sendes delvis tilbage)
 ```
 
-En del af kornene går også direkte ud ved siden af rummet (valgt af Henrik ved lytning i fase 3: inde i rummet alene blev kornene opløst, så de ikke kunne høres).
+Kornene tager fra rummets egen hale, ikke fra input: korn af input gav dobbelte anslag på korte bleeps (fase 4). En del af kornene går tilbage ind i rummet, så skyen holder sig selv i live (variant C, valgt af Henrik ved lytning), og en del går direkte ud ved siden af rummet. Hvor meget ejes af Space; en begrænser holder skyen fra at vokse ved høj Space. Skyens længde afhænger af, hvor kraftigt der spilles.
 
 Kan Clouds' egen reverb gøre Cloud Seed overflødig i nogle presets, eller omvendt: fint. Det afgøres ved at lytte.
 

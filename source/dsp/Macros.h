@@ -24,6 +24,8 @@ struct MacroSettings
     // changing those while sound is in them clicks, so they stay fixed.)
     double spaceDecaySeconds = 9.5;     // Cloud Seed's decay setting (measured T60 is longer)
     double spaceWidth = 1.0;            // wet stereo width, 0..1
+    double spaceSkyFeedDb = -6.0;       // the room's grains back into it (the endless cloud)
+    double spaceSkyOutDb = -6.0;        // the same grains heard beside the room
     double spaceGainDb = 0.0;           // level compensation
 
     // Echo: none -> many repeats (tempo-synced 1/8 dotted ping-pong)
@@ -32,12 +34,6 @@ struct MacroSettings
     double echoGainDb = 0.0;
 
     // Motion: still -> alive
-    double motionTextureAmount = 1.0;   // grains instead of input into the room (equal-power)
-    double motionGrainsDirectDb = -3.0; // grains straight out beside the room
-    double motionDensity = 0.75;
-    double motionFeedback = 0.25;
-    double motionTextureShape = 0.7;
-    double motionTextureGainDb = 5.1;   // makes the grains as loud as the input (calibrated)
     double motionLineModMs = 1.0;
     double motionLineModHz = 0.25;
     double motionDiffuseModMs = 0.6;

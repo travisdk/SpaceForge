@@ -41,7 +41,9 @@ std::map<std::string, double*> voicingFields (dsp::SpaceVoicing& v)
              { "lateLevelDb", &v.lateLevelDb }, { "lowShelfHz", &v.lowShelfHz }, { "lowShelfDb", &v.lowShelfDb },
              { "highShelfHz", &v.highShelfHz }, { "crossSeed", &v.crossSeed }, { "monoBassHz", &v.monoBassHz },
              { "wetGainDb", &v.wetGainDb }, { "texture.position", &v.texture.position }, { "texture.size", &v.texture.size },
-             { "texture.stereoSpread", &v.texture.stereoSpread } };
+             { "texture.stereoSpread", &v.texture.stereoSpread }, { "texture.density", &v.texture.density },
+             { "texture.texture", &v.texture.texture }, { "texture.feedback", &v.texture.feedback },
+             { "texture.gainDb", &v.texture.gainDb }, { "skyLimitDb", &v.skyLimitDb } };
 }
 
 std::map<std::string, int*> voicingIntFields (dsp::SpaceVoicing& v)
@@ -118,15 +120,15 @@ double wetLevel (dsp::SpaceEngine& engine, const analysis::Stereo& pink)
 void printTable()
 {
     std::printf ("Hvad knapperne gør, pr. position (de andre knapper på Init):\n\n");
-    std::printf ("SPACE   tekst      decay-indst.  bredde  niveau-komp.\n");
+    std::printf ("SPACE   tekst      decay-indst.  bredde  sky ind    sky ud     niveau-komp.\n");
     for (int i = 0; i <= 10; ++i)
     {
         const float x = (float) i / 10.0f;
         dsp::MacroPositions p;
         p.space = x;
         const auto s = dsp::mapMacros (p);
-        std::printf ("  %3d %%  %-9s  %6.1f s      %4.2f    %+5.1f dB\n", i * 10, dsp::describeSpace (x).c_str(),
-                     s.spaceDecaySeconds, s.spaceWidth, s.spaceGainDb);
+        std::printf ("  %3d %%  %-9s  %6.1f s      %4.2f    %+5.1f dB   %+5.1f dB   %+5.1f dB\n", i * 10, dsp::describeSpace (x).c_str(),
+                     s.spaceDecaySeconds, s.spaceWidth, s.spaceSkyFeedDb, s.spaceSkyOutDb, s.spaceGainDb);
     }
     std::printf ("\nECHO    tekst          send   feedback  niveau-komp.\n");
     for (int i = 0; i <= 10; ++i)
@@ -137,15 +139,14 @@ void printTable()
         const auto s = dsp::mapMacros (p);
         std::printf ("  %3d %%  %-13s  %4.2f   %4.2f      %+5.1f dB\n", i * 10, dsp::describeEcho (x).c_str(), s.echoSend, s.echoFeedback, s.echoGainDb);
     }
-    std::printf ("\nMOTION  tekst                                 korn  korn direkte  tæthed  mod.     pan      niveau-komp.\n");
+    std::printf ("\nMOTION  tekst                                 mod.     pan      niveau-komp.\n");
     for (int i = 0; i <= 10; ++i)
     {
         const float x = (float) i / 10.0f;
         dsp::MacroPositions p;
         p.motion = x;
         const auto s = dsp::mapMacros (p);
-        std::printf ("  %3d %%  %-36s  %4.2f  %+6.1f dB     %4.2f    %4.1f ct  %4.2f    %+5.1f dB\n", i * 10, dsp::describeMotion (x).c_str(),
-                     s.motionTextureAmount, s.motionGrainsDirectDb, s.motionDensity,
+        std::printf ("  %3d %%  %-36s  %4.1f ct  %4.2f    %+5.1f dB\n", i * 10, dsp::describeMotion (x).c_str(),
                      analysis::modulationCents (s.motionLineModMs, s.motionLineModHz), s.motionPanDepth, s.motionGainDb);
     }
     std::printf ("\nTONE    tekst              dæmpning  diskant  input-top  ekko-dæmpning  finish  niveau-komp.\n");
@@ -163,29 +164,6 @@ void printTable()
 void calibrate (const dsp::SpaceVoicing& voicing)
 {
     const auto pink = analysis::makePinkNoise (kRate, 12.0, 0.125f, 3);
-
-    // Clouds' own level at each Motion position (grains against input), with the current table.
-    std::printf ("Motion: Clouds' level (grains against input) with the current kMotionTextureGainDb:\n  {");
-    for (int i = 0; i <= 10; ++i)
-    {
-        dsp::MacroPositions p;
-        p.motion = (float) i / 10.0f;
-        const auto s = dsp::mapMacros (p);
-        auto t = voicing.texture;
-        t.density = s.motionDensity;
-        t.feedback = s.motionFeedback;
-        t.texture = s.motionTextureShape;
-        t.gainDb = s.motionTextureGainDb;
-        dsp::TextureEngine texture;
-        texture.setVoicing (t);
-        texture.reset();
-        analysis::Stereo out { std::vector<float> (pink.size()), std::vector<float> (pink.size()) };
-        for (size_t pos = 0; pos + 256 <= pink.size(); pos += 256)
-            texture.process (&pink.l[pos], &pink.r[pos], &out.l[pos], &out.r[pos], 256);
-        const auto from = (size_t) (4.0 * kRate);
-        const double level = analysis::rmsDb (out, from, pink.size()) - analysis::rmsDb (pink, from, pink.size());
-        std::printf (" %.1f%s", s.motionTextureGainDb - level, i < 10 ? "," : " }  <- suggested kMotionTextureGainDb\n");
-    }
 
     // Each knob's overall wet level against Init (with the current compensation tables), and the
     // suggested tables that cancel what is left.
@@ -211,17 +189,15 @@ void calibrate (const dsp::SpaceVoicing& voicing)
         std::printf ("\n%s  <- suggested\n", suggestion.c_str());
     }
 
-    // Space: the room's real decay time at each position (without grains, so it is the room's).
+    // Space: the real tail at each position, sky included, of a noise burst (the sky's tail
+    // depends on the level; a click is far softer than music). Slow: some 15 minutes.
     std::printf ("space: measured T60 at 1 kHz:\n  {");
-    auto roomOnly = voicing;
-    roomOnly.grainsEnabled = false;
     for (int i = 0; i <= 10; ++i)
     {
         dsp::MacroPositions p;
         p.space = (float) i / 10.0f;
-        auto engine = makeEngine (roomOnly, p);
-        const double seconds = std::min (120.0, 2.0 + 0.7 * dsp::mapMacros (p).spaceDecaySeconds * 1.6);
-        const auto ir = analysis::render (*engine, analysis::makeImpulse (kRate, seconds).audio, kRate);
+        auto engine = makeEngine (voicing, p);
+        const auto ir = analysis::render (*engine, analysis::makeNoiseBurst (kRate, 90.0).audio, kRate);
         std::printf (" %.2f%s", analysis::reverbTimePerOctave (ir, kRate)[3], i < 10 ? "," : " }  <- kSpaceMeasuredT60\n");
         std::fflush (stdout);
     }

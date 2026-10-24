@@ -104,21 +104,27 @@ void testLevels()
 void testSpace()
 {
     // Longer to the right, by a factor of at least 10 over the range; the text shows the real
-    // decay time (within 15 %); narrower to the left.
+    // tail, sky included, of a noise burst (within 15 %; "∞" means it holds itself for more than
+    // 100 s); narrower to the left.
     std::printf ("Space: T60 at 1 kHz (measured / shown), L/R correlation above 300 Hz:\n");
     double previous = 0.0, first = 0.0, corrLeft = 0.0, corrRight = 0.0;
     for (const int percent : kPositions)
     {
         const double x = percent / 100.0;
-        auto engine = makeEngine (with (&dsp::MacroPositions::space, x), false);
-        const double expected = std::atof (dsp::describeSpace ((float) x).c_str());
-        const auto ir = renderWet (*engine, analysis::makeImpulse (kRate, std::min (110.0, 2.0 + 1.2 * expected)).audio);
+        auto engine = makeEngine (with (&dsp::MacroPositions::space, x));
+        const auto text = dsp::describeSpace ((float) x);
+        const bool endless = text == "∞";
+        const double expected = endless ? 0.0 : std::atof (text.c_str());
+        const auto ir = renderWet (*engine, analysis::makeNoiseBurst (kRate, endless ? 90.0 : std::min (90.0, 2.0 + 2.5 * expected)).audio);
         const double t60 = analysis::reverbTimePerOctave (ir, kRate)[3];
         const auto burst = renderWet (*engine, analysis::makeNoiseBurst (kRate, 3.0).audio);
         const double corr = analysis::correlationAbove (burst, kRate, 300.0, at (0.4), at (1.5));
-        std::printf ("  %3d%%: %6.2f s / %-7s corr %+.2f\n", percent, t60, dsp::describeSpace ((float) x).c_str(), corr);
+        std::printf ("  %3d%%: %6.2f s / %-7s corr %+.2f\n", percent, t60, text.c_str(), corr);
         CHECK (t60 > previous);
-        CHECK_RANGE (t60 / expected, 0.85, 1.15);
+        if (endless)
+            CHECK (t60 > 100.0);
+        else
+            CHECK_RANGE (t60 / expected, 0.85, 1.15);
         if (percent == 0)
         {
             first = t60;
@@ -179,9 +185,9 @@ void testEcho()
 
 void testMotion()
 {
-    // At the top the room moves between left and right (auto-pan), also with the transport
-    // stopped; the modulation deepens (checked in the table). How much the figure changes is
-    // reported for reference.
+    // The room moves more and more between left and right (auto-pan) over the whole knob, also
+    // with the transport stopped; the modulation deepens (checked in the table). How much the
+    // figure changes is reported for reference.
     std::printf ("Motion: change of the figure against Motion 0 (x random), L/R swing of the pad:\n");
     const auto figure = analysis::makeSynthFigure (kRate, 3.0).audio;
     const auto pad = analysis::makePad (kRate, 2.0).audio;
@@ -204,7 +210,7 @@ void testMotion()
         return *hi - *lo;
     };
 
-    double swingAtInit = 0.0;
+    double swingStill = 0.0, previous = 0.0;
     for (const int percent : kPositions)
     {
         auto engine = makeEngine (with (&dsp::MacroPositions::motion, percent / 100.0));
@@ -213,13 +219,18 @@ void testMotion()
         std::printf ("  %3d%% %-38s change %4.2f x, swing %4.1f dB\n", percent, dsp::describeMotion (percent / 100.0f).c_str(), change, swing);
         (void) change; // reported only: Motion has no grains since phase 4
         // The room itself drifts a few dB between left and right; the auto-pan must clearly
-        // stand out from that (none up to Init).
+        // stand out from that already at Init (Henrik heard nothing below 75 %).
+        // (Up to 25 % the pan is slow, 4 bars, and the sky's own drift can hide it in this short
+        // window; from there on every step must swing more.)
+        if (percent == 0)
+            swingStill = swing;
+        else if (percent > 25)
+            CHECK (swing > previous);
         if (percent == 50)
-            swingAtInit = swing;
-        if (percent <= 50)
-            CHECK (swing < 9.0);
+            CHECK (swing > swingStill + 6.0);
         if (percent == 100)
-            CHECK (swing > swingAtInit + 10.0);
+            CHECK (swing > swingStill + 10.0);
+        previous = swing;
     }
 
     // Transport stopped: the pan runs on freely.
@@ -235,7 +246,7 @@ void testMotion()
         engine->process (&pad.l[pos], &pad.r[pos], &out.l[pos], &out.r[pos], n);
     }
     std::printf ("  transport stopped, Motion 100 %%: swing %.1f dB\n", swingOf (out));
-    CHECK (swingOf (out) > swingAtInit + 10.0);
+    CHECK (swingOf (out) > swingStill + 10.0);
 }
 
 void testTone()
@@ -336,7 +347,7 @@ void testTexts()
     CHECK (dsp::describeEcho (0.0f) == "intet ekko");
     CHECK (dsp::describeMotion (0.0f) == "stille");
     CHECK (dsp::describeMotion (1.0f).find ("pan ½ takt") != std::string::npos);
-    CHECK (dsp::describeMotion (0.5f).find ("pan") == std::string::npos); // Init: no auto-pan
+    CHECK (dsp::describeMotion (0.5f).find ("pan 2 takter") != std::string::npos);
     CHECK (dsp::describeTone (0.0f) == "mørk ●○○○○ lys");
     CHECK (dsp::describeTone (1.0f) == "mørk ●●●●● lys");
 }

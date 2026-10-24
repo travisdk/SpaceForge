@@ -13,12 +13,14 @@ namespace
 {
 // Level compensation per knob at 0, 0.1, ..., 1.0 (dB, the other knobs at Init), measured with
 // steady pink noise so no knob moves the overall level. Filled in by `sf2_render --calibrate`.
-constexpr std::array<double, 11> kSpaceGainDb { 6.25, 5.90, 5.31, 4.35, 3.01, 1.39, -0.03, -1.44, -2.69, -3.66, -4.34 };
-constexpr std::array<double, 11> kEchoGainDb { 0.03, -0.49, -1.74, -1.78, -1.84, -1.92, -2.02, -2.16, -2.34, -2.60, -3.00 };
+constexpr std::array<double, 11> kSpaceGainDb { 8.83, 8.45, 7.51, 5.60, 2.82, 1.22, -0.03, -1.74, -3.26, -4.44, -5.21 };
+constexpr std::array<double, 11> kEchoGainDb { 0.03, -0.30, -1.16, -1.19, -1.22, -1.27, -1.33, -1.42, -1.55, -1.73, -2.02 };
 constexpr std::array<double, 11> kMotionGainDb { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-constexpr std::array<double, 11> kToneGainDb { 2.09, 1.72, 1.36, 0.98, 0.53, -0.03, -0.38, -0.76, -1.20, -1.70, -2.25 };
-// Clouds' output level depends on how many grains overlap: makes the grains as loud as the input.
-constexpr std::array<double, 11> kMotionTextureGainDb { 23.2, 16.6, 9.3, 5.5, 3.4, 1.5, 0.8, 0.1, 0.1, 0.2, 0.1 };
+// How much of the room's grains go back into it (the sky), per Space position: found by
+// measurement so the tail grows evenly, about twice as long per step up to Henrik's choice (C)
+// at Init; above it the sky holds itself (the limit keeps it from growing).
+constexpr std::array<double, 11> kSpaceSkyFeedDb { -40.0, -19.4, -8.5, -4.6, -3.7, -4.6, -6.0, -5.5, -5.0, -4.5, -4.0 };
+constexpr std::array<double, 11> kToneGainDb { 1.71, 1.44, 1.17, 0.83, 0.44, -0.03, -0.32, -0.65, -1.04, -1.48, -1.99 };
 
 double clamp01 (double x) { return std::isfinite (x) ? std::clamp (x, 0.0, 1.0) : 0.0; }
 
@@ -52,7 +54,7 @@ std::string dots (double x, const char* left, const char* right)
 }
 } // namespace
 
-const std::array<double, 11> kSpaceMeasuredT60 { 1.03, 1.23, 1.94, 3.21, 5.41, 9.04, 14.68, 23.20, 34.72, 49.34, 66.40 };
+const std::array<double, 11> kSpaceMeasuredT60 { 1.8, 3.5, 6.9, 13.5, 26.6, 52.8, 103.5, 120.8, 130.3, 134.2, 132.8 };
 
 int echoRepeats (double feedback)
 {
@@ -68,6 +70,9 @@ MacroSettings mapMacros (const MacroPositions& p)
     const double space = clamp01 (p.space);
     s.spaceDecaySeconds = 0.3 * std::pow (317.0, space); // setting 0.3..95 s (measured T60 1.6..70 s), 9.5 s at Init
     s.spaceWidth = through (space, 0.6, 0.5, 1.0, 1.0);
+    // The sky grows with the room: hardly any in a short room, Henrik's choice (C) at Init.
+    s.spaceSkyFeedDb = table (kSpaceSkyFeedDb, space);
+    s.spaceSkyOutDb = through (space, -24.0, 0.6, -6.0, -6.0);
     s.spaceGainDb = table (kSpaceGainDb, space);
 
     const double echo = clamp01 (p.echo);
@@ -76,23 +81,17 @@ MacroSettings mapMacros (const MacroPositions& p)
     s.echoGainDb = table (kEchoGainDb, echo);
 
     const double motion = clamp01 (p.motion);
-    // No grains (phase 4): heard directly, every grain of a short note is an audible copy of it
-    // (Henrik heard it as an echo on his own bleeps); inside the room only, they made no audible
-    // difference (measured). Clouds stays in the code but out of the signal path.
-    s.motionTextureAmount = 0.0;
-    s.motionGrainsDirectDb = -100.0;
-    s.motionDensity = through (motion, 0.6, 0.5, 0.85, 0.92);
-    s.motionFeedback = through (motion, 0.05, 0.5, 0.15, 0.08); // more makes the grains repeat audibly
-    s.motionTextureShape = through (motion, 0.6, 0.5, 0.7, 0.82);
-    s.motionTextureGainDb = table (kMotionTextureGainDb, motion);
-    s.motionLineModMs = through (motion, 0.3, 0.5, 1.0, 1.8);
-    s.motionLineModHz = through (motion, 0.12, 0.5, 0.25, 0.4);
-    s.motionDiffuseModMs = through (motion, 0.2, 0.5, 0.6, 1.0);
-    s.motionDiffuseModHz = through (motion, 0.2, 0.5, 0.4, 0.6);
-    s.motionPanDepth = through (motion, 0.0, 0.5, 0.0, 0.7);
-    // Faster as Motion rises: 8, 4, 2, 1 and half a bar over the five steps above 50 %.
-    constexpr int bars[] = { 8, 8, 4, 2, 1, 0 };
-    s.motionPanBars = bars[std::clamp ((int) std::ceil ((motion - 0.5) * 10.0 - 1.0e-3), 0, 5)];
+    // Most of the modulation comes early (Henrik heard nothing below 75 %); the top stays under
+    // the 6 cent vibrato limit.
+    s.motionLineModMs = through (motion, 0.5, 0.5, 1.2, 1.5);
+    s.motionLineModHz = through (motion, 0.2, 0.5, 0.3, 0.33);
+    s.motionDiffuseModMs = through (motion, 0.4, 0.5, 0.8, 0.9);
+    s.motionDiffuseModHz = through (motion, 0.3, 0.5, 0.45, 0.55);
+    // The auto-pan runs over the whole knob, from none at 0 % to wide and fast at 100 %; half
+    // its width is already there at 25 %, so the lower half can be heard too.
+    s.motionPanDepth = through (motion, 0.0, 0.25, 0.35, 0.7);
+    // Faster as Motion rises: 8, 4, 2, 1 and half a bar.
+    s.motionPanBars = motion <= 0.15 ? 8 : motion <= 0.35 ? 4 : motion <= 0.6 ? 2 : motion <= 0.85 ? 1 : 0;
     s.motionGainDb = table (kMotionGainDb, motion);
 
     const double tone = clamp01 (p.tone);
@@ -108,6 +107,8 @@ MacroSettings mapMacros (const MacroPositions& p)
 std::string describeSpace (float position)
 {
     const double t = table (kSpaceMeasuredT60, position);
+    if (t >= 120.0)
+        return "∞"; // the sky holds itself
     char text[32];
     if (t < 10.0)
         std::snprintf (text, sizeof (text), "%.1f s", t);

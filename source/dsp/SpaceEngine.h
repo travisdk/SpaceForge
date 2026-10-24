@@ -78,17 +78,18 @@ private:
 
     TextureEngine texture;
     EchoEngine echo;
-    // Per chunk: the dry input, its gain into the room (Freeze), the grains, the echoes, the
-    // room's output.
-    std::array<float, kMaxChunk> inL {}, inR {}, inGain {}, grainsL {}, grainsR {}, echoL {}, echoR {}, wetL {}, wetR {};
+    // Per chunk: the dry input, its gain into the room (Freeze), the auto-pan, the grains, the
+    // echoes, the room's output.
+    std::array<float, kMaxChunk> inL {}, inR {}, inGain {}, panGainL {}, panGainR {}, grainsL {}, grainsR {}, echoL {}, echoR {}, wetL {}, wetR {};
 
-    // High-pass on the wet side signal, two second-order stages (makes the bass mono).
-    struct HighPass
+    // High-pass on the wet side signal (makes the bass mono), and the mid split into bass and the
+    // rest (the auto-pan leaves the bass in the middle); two second-order stages each.
+    struct Biquad
     {
         double b0 = 1, b1 = 0, b2 = 0, a1 = 0, a2 = 0, s1 = 0, s2 = 0;
-        void setup (double hz, double rate);
+        void setup (double hz, double rate, bool highPass = true);
         float process (float x);
-    } sideHighPass[2];
+    } sideHighPass[2], midHighPass[2], midLowPass[2];
 
     MacroPositions macroTarget, macroNow;
     MacroSettings settings;   // what is applied now
@@ -101,8 +102,13 @@ private:
     // The gains applied in the last chunk (each chunk glides from these to the new ones).
     struct Gains
     {
-        float input = 0.0f, grains = 1.0f, send = 0.0f, direct = 0.0f, wet = 1.0f;
+        float send = 0.0f, skyFeed = 0.0f, skyOut = 0.0f, wet = 1.0f;
     } gains;
+    Gains gainsNow() const;
+    // The sky (see SpaceVoicing): the room's last output, which the grains take from, and its
+    // level (mean square, smoothed) against the limit.
+    std::array<float, kMaxChunk> roomL {}, roomR {};
+    float skyLevel = 0.0f, skyLevelCoeff = 0.0f, skyLimit = 0.0f;
 
     // Tone's finish (treble shelf after the room).
     float tiltCoeff = 0.0f, tiltGain = 0.0f, tiltLowL = 0.0f, tiltLowR = 0.0f;

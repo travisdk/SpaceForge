@@ -12,11 +12,16 @@ namespace spaceforge::dsp
 // ear. What the knobs move is in MacroSettings (dsp/Macros.h).
 struct SpaceVoicing
 {
-    // Granular texture: where the grains come from and how wide they spread. (Density, feedback,
-    // window shape and level belong to Motion and are set by it.)
-    TextureVoicing texture;
-    // Measurement only (the offline tools' "without grains" comparisons): the room hears the
-    // input instead of grains, and no grains go straight out. Always on in the plug-in.
+    // The sky: Clouds granulates the room's own tail (never the input, so no grain copies a
+    // note's attack: Henrik heard that as an echo on his bleeps, phase 4), and part of the
+    // grains go back into the room, so the cloud keeps itself alive (how much belongs to Space).
+    // Long soft grains from half a second back. Chosen by Henrik by ear (variant C).
+    TextureVoicing texture { 0.5, 0.7, 0.8, 0.8, 0.7, 0.4, 1.5 };
+    // Above this level (RMS of the room's output) less of the grains go back, so the cloud can
+    // hold itself but never grow (with Space high it otherwise grew without end; measured).
+    double skyLimitDb = -18.0;
+    // Measurement only (the offline tools' "without grains" comparisons): no sky. Always on in
+    // the plug-in.
     bool grainsEnabled = true;
 
     // Input: what goes into the room. The low cut keeps kick drums out of the tail.
@@ -56,6 +61,6 @@ struct SpaceVoicing
     double monoBassHz = 150.0;
     // Makes the wet signal as loud as the dry for steady material at Init (calibrated with pink
     // noise); each knob's own compensation comes on top.
-    double wetGainDb = 0.41;
+    double wetGainDb = -2.16;
 };
 } // namespace spaceforge::dsp

@@ -72,12 +72,14 @@ void testCharacterTargets()
 
 void testSampleRates()
 {
-    std::printf ("The same room at every sample rate (T60 at 1 kHz, wet level of pink noise):\n");
+    // Measured with a noise burst, not a click: a one-sample click carries less energy the higher
+    // the rate (3 dB at 96 kHz), and the sky's tail depends on how loud the sound was.
+    std::printf ("The same room at every sample rate (T60 at 1 kHz of a noise burst, wet level of pink noise):\n");
     double t48 = 0.0, level48 = 0.0;
     for (const double rate : { 48000.0, 44100.0, 96000.0 })
     {
         auto engine = makeEngine (rate);
-        const auto ir = analysis::render (*engine, analysis::makeImpulse (rate, 25.0).audio, rate);
+        const auto ir = analysis::render (*engine, analysis::makeNoiseBurst (rate, 30.0).audio, rate);
         const double t1k = analysis::reverbTimePerOctave (ir, rate)[3];
         const auto pink = analysis::makePinkNoise (rate, 10.0, 0.125f, 3);
         const double level = analysis::rmsDb (analysis::render (*engine, pink, rate), (size_t) (5.0 * rate), pink.size())
@@ -88,7 +90,8 @@ void testSampleRates()
             t48 = t1k;
             level48 = level;
         }
-        CHECK_RANGE (t1k / t48, 0.9, 1.1);
+        // (±15 %: the sky makes the tail some 70 s long, where a tenth more or less is not heard)
+        CHECK_RANGE (t1k / t48, 0.85, 1.15);
         CHECK_RANGE (level - level48, -1.0, 1.0);
     }
 }
@@ -132,7 +135,8 @@ void testMix()
 
 void testFreezeReleases()
 {
-    // After Freeze is released the room decays again: at least 20 dB down 15 s later.
+    // After Freeze is released the room decays again: at least 10 dB down 15 s later (the sky
+    // keeps the tail alive far longer than the room alone, which fell 20 dB).
     const double rate = 48000.0;
     auto engine = makeEngine (rate);
     analysis::RenderOptions options;
@@ -142,7 +146,7 @@ void testFreezeReleases()
     const double held = analysis::rmsDb (out, (size_t) (7.0 * rate), (size_t) (8.0 * rate));
     const double later = analysis::rmsDb (out, (size_t) (23.0 * rate), (size_t) (24.0 * rate));
     std::printf ("Freeze released at 8 s: %.1f dB before, %.1f dB 15 s later\n", held, later);
-    CHECK (later < held - 20.0);
+    CHECK (later < held - 10.0);
 }
 
 void testHostileInput()

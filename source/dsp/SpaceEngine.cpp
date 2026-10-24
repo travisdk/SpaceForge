@@ -23,20 +23,20 @@ constexpr double kTiltHz = 2000.0;
 constexpr double kMutedDb = -30.0;
 } // namespace
 
-void SpaceEngine::HighPass::setup (double hz, double rate)
+void SpaceEngine::Biquad::setup (double hz, double rate, bool highPass)
 {
     // RBJ cookbook, Butterworth Q
     const double w = 2.0 * kPi * hz / rate, cosw = std::cos (w), alpha = std::sin (w) / (2.0 * std::sqrt (0.5));
     const double a0 = 1.0 + alpha;
-    b0 = (1.0 + cosw) / 2.0 / a0;
-    b1 = -(1.0 + cosw) / a0;
+    b0 = (highPass ? 1.0 + cosw : 1.0 - cosw) / 2.0 / a0;
+    b1 = (highPass ? -(1.0 + cosw) : 1.0 - cosw) / a0;
     b2 = b0;
     a1 = -2.0 * cosw / a0;
     a2 = (1.0 - alpha) / a0;
     s1 = s2 = 0.0;
 }
 
-float SpaceEngine::HighPass::process (float x)
+float SpaceEngine::Biquad::process (float x)
 {
     const double y = b0 * x + s1;
     s1 = b1 * x - a1 * y + s2;
@@ -53,6 +53,13 @@ SpaceEngine::SpaceEngine()
 }
 
 SpaceEngine::~SpaceEngine() = default;
+
+SpaceEngine::Gains SpaceEngine::gainsNow() const
+{
+    const auto gainOf = [] (double db) { return db > -60.0 ? (float) std::pow (10.0, db / 20.0) : 0.0f; };
+    const bool sky = currentVoicing.grainsEnabled;
+    return { (float) settings.echoSend, sky ? gainOf (settings.spaceSkyFeedDb) : 0.0f, sky ? gainOf (settings.spaceSkyOutDb) : 0.0f, wetGain };
+}
 
 void SpaceEngine::prepare (double newSampleRate)
 {
@@ -130,6 +137,12 @@ void SpaceEngine::applyVoicing()
     }
     for (auto& f : sideHighPass)
         f.setup (v.monoBassHz, sampleRate);
+    for (auto& f : midHighPass)
+        f.setup (v.monoBassHz, sampleRate);
+    for (auto& f : midLowPass)
+        f.setup (v.monoBassHz, sampleRate, false);
+    skyLimit = (float) std::pow (10.0, v.skyLimitDb / 20.0);
+    skyLevelCoeff = (float) (1.0 - std::exp (-1.0 / (0.3 * sampleRate)));
     applySettings (settings, true);
 }
 
@@ -163,16 +176,8 @@ void SpaceEngine::applySettings (const MacroSettings& s, bool force)
                 set (P::EqHighGain, s.toneHighShelfDb);
         }
     }
-    if (force || changed (s.motionDensity, old.motionDensity) || changed (s.motionFeedback, old.motionFeedback)
-        || changed (s.motionTextureShape, old.motionTextureShape) || changed (s.motionTextureGainDb, old.motionTextureGainDb))
-    {
-        auto t = currentVoicing.texture;
-        t.density = s.motionDensity;
-        t.feedback = s.motionFeedback;
-        t.texture = s.motionTextureShape;
-        t.gainDb = s.motionTextureGainDb;
-        texture.setVoicing (t);
-    }
+    if (force)
+        texture.setVoicing (currentVoicing.texture);
     echo.setFeedback (s.echoFeedback);
     echo.setDampingHz (s.toneEchoDampingHz);
     // Tone's finish: a first-order shelf above ~2 kHz, as gain on a high-passed copy.
@@ -216,8 +221,14 @@ void SpaceEngine::reset()
     echo.reset();
     for (auto& f : sideHighPass)
         f.s1 = f.s2 = 0.0;
+    for (auto& f : midHighPass)
+        f.s1 = f.s2 = 0.0;
+    for (auto& f : midLowPass)
+        f.s1 = f.s2 = 0.0;
     tiltLowL = tiltLowR = 0.0f;
     inL.fill (0.0f);
+    roomL.fill (0.0f);
+    roomR.fill (0.0f);
     inR.fill (0.0f);
     wetL.fill (0.0f);
     wetR.fill (0.0f);
@@ -231,9 +242,8 @@ void SpaceEngine::reset()
     echo.reset();
     inputGain = frozen ? 0.0f : 1.0f;
     panL = panR = 1.0f;
-    const auto amount = currentVoicing.grainsEnabled ? (float) std::clamp (settings.motionTextureAmount, 0.0, 1.0) : 0.0f;
-    gains = { std::cos (amount * (float) (kPi / 2.0)), std::sin (amount * (float) (kPi / 2.0)), (float) settings.echoSend,
-              currentVoicing.grainsEnabled ? (float) std::pow (10.0, settings.motionGrainsDirectDb / 20.0) : 0.0f, wetGain };
+    gains = gainsNow();
+    skyLevel = 0.0f;
 }
 
 void SpaceEngine::process (const float* inputL, const float* inputR, float* outL, float* outR, int numSamples)
@@ -251,14 +261,9 @@ void SpaceEngine::process (const float* inputL, const float* inputR, float* outL
         inL[(size_t) pos] = dryL;
         inR[(size_t) pos] = dryR;
         inGain[(size_t) pos] = inputGain;
-        float wl = wetL[(size_t) pos], wr = wetR[(size_t) pos];
-        if (++pos == chunk)
-        {
-            processChunk();
-            pos = 0;
-        }
 
         // Auto-pan (Motion), locked to the host's bars: equal-power, so the room keeps its level.
+        // Applied in processChunk together with the mono bass, so the bass stays in the middle.
         const double cycleBeats = settings.motionPanBars == 0 ? 2.0 : 4.0 * settings.motionPanBars;
         const double phase = ppq / cycleBeats;
         const auto swing = (float) (settings.motionPanDepth * std::sin (2.0 * kPi * (phase - std::floor (phase))));
@@ -266,8 +271,15 @@ void SpaceEngine::process (const float* inputL, const float* inputR, float* outL
         panL += (std::cos (angle) * (float) std::sqrt (2.0) - panL) * panCoeff;
         panR += (std::sin (angle) * (float) std::sqrt (2.0) - panR) * panCoeff;
         ppq += beatsPerSample;
-        wl *= panL;
-        wr *= panR;
+        panGainL[(size_t) pos] = panL;
+        panGainR[(size_t) pos] = panR;
+
+        const float wl = wetL[(size_t) pos], wr = wetR[(size_t) pos];
+        if (++pos == chunk)
+        {
+            processChunk();
+            pos = 0;
+        }
 
         // Equal-power mix: dry and wet are about equally loud, so the sum stays level.
         const float target = std::clamp (mixTarget, 0.0f, 1.0f);
@@ -307,23 +319,21 @@ void SpaceEngine::processChunk()
         applySettings (mapMacros (macroNow), false);
     echo.setDelaySeconds (kEchoBeats * 60.0 / bpm);
 
-    // Clouds runs all the time (also frozen) while it is in use, so its last second of sound is
-    // always current. Out of the path (no grains anywhere) it is not run at all.
-    if (gains.grains > 0.0f || settings.motionTextureAmount > 0.0 || settings.motionGrainsDirectDb > -60.0)
-        texture.process (inL.data(), inR.data(), grainsL.data(), grainsR.data(), chunk);
+    // Clouds granulates the room's last output all the time (also frozen), so its last second
+    // of sound is always current.
+    if (currentVoicing.grainsEnabled)
+        texture.process (roomL.data(), roomR.data(), grainsL.data(), grainsR.data(), chunk);
     else
     {
         std::fill (grainsL.begin(), grainsL.begin() + chunk, 0.0f);
         std::fill (grainsR.begin(), grainsR.begin() + chunk, 0.0f);
     }
 
-    // Into the room: input and grains (equal-power) and the echoes of both, all muted while
-    // frozen. Each side hears a little of the other (Cloud Seed's own input mix).
+    // Into the room: the input and its echoes, muted while frozen. Each side hears a little of
+    // the other (Cloud Seed's own input mix).
     // The gains the knobs set glide sample by sample from the last chunk's values, so a knob
     // moving never steps them (steps every 2.7 ms would buzz).
-    const auto amount = currentVoicing.grainsEnabled ? (float) std::clamp (settings.motionTextureAmount, 0.0, 1.0) : 0.0f;
-    const Gains target { std::cos (amount * (float) (kPi / 2.0)), std::sin (amount * (float) (kPi / 2.0)), (float) settings.echoSend,
-                         currentVoicing.grainsEnabled ? (float) std::pow (10.0, settings.motionGrainsDirectDb / 20.0) : 0.0f, wetGain };
+    const Gains target = gainsNow();
     const Gains from = gains;
     gains = target;
     auto glideAt = [&] (float Gains::*g, int i) { return from.*g + (target.*g - from.*g) * (float) (i + 1) / (float) chunk; };
@@ -332,9 +342,9 @@ void SpaceEngine::processChunk()
     for (int i = 0; i < chunk; ++i)
     {
         const auto k = (size_t) i;
-        const float inputPart = glideAt (&Gains::input, i), grainPart = glideAt (&Gains::grains, i), send = glideAt (&Gains::send, i);
-        feedL[k] = (inL[k] * inputPart + grainsL[k] * grainPart) * inGain[k];
-        feedR[k] = (inR[k] * inputPart + grainsR[k] * grainPart) * inGain[k];
+        const float send = glideAt (&Gains::send, i);
+        feedL[k] = inL[k] * inGain[k];
+        feedR[k] = inR[k] * inGain[k];
         echoL[k] = feedL[k] * send;
         echoR[k] = feedR[k] * send;
     }
@@ -349,20 +359,34 @@ void SpaceEngine::processChunk()
         feedL[k] = l * (1.0f - cross) + r * cross;
         feedR[k] = r * (1.0f - cross) + l * cross;
     }
+    // The sky's grains go back into the room beside the input (after the echo send, so the
+    // echoes stay echoes of what was played), less of them while the room is above the limit.
+    for (int i = 0; i < chunk; ++i)
+    {
+        const auto k = (size_t) i;
+        skyLevel += (0.5f * (roomL[k] * roomL[k] + roomR[k] * roomR[k]) - skyLevel) * skyLevelCoeff;
+        const float rms = std::sqrt (skyLevel);
+        const float limit = rms > skyLimit ? skyLimit / rms : 1.0f;
+        const float feed = glideAt (&Gains::skyFeed, i) * limit * inGain[k];
+        feedL[k] += grainsL[k] * feed;
+        feedR[k] += grainsR[k] * feed;
+    }
     left->Process (feedL.data(), wetL.data(), chunk);
     right->Process (feedR.data(), wetR.data(), chunk);
+    std::copy (wetL.begin(), wetL.begin() + chunk, roomL.begin());
+    std::copy (wetR.begin(), wetR.begin() + chunk, roomR.begin());
 
     // The grains and the echoes are also heard straight away beside the room, where it has not
     // yet dissolved them.
     for (int i = 0; i < chunk; ++i)
     {
         const auto k = (size_t) i;
-        const float direct = glideAt (&Gains::direct, i);
-        wetL[k] += (grainsL[k] * direct + echoL[k]) * inGain[k];
-        wetR[k] += (grainsR[k] * direct + echoR[k]) * inGain[k];
+        const float out = glideAt (&Gains::skyOut, i);
+        wetL[k] += (grainsL[k] * out + echoL[k]) * inGain[k];
+        wetR[k] += (grainsR[k] * out + echoR[k]) * inGain[k];
     }
 
-    // Tone's finish, mono bass, stereo width (Space), level.
+    // Tone's finish, mono bass, stereo width (Space), auto-pan, level.
     const auto width = (float) settings.spaceWidth;
     bool finite = true;
     for (int i = 0; i < chunk; ++i)
@@ -374,9 +398,15 @@ void SpaceEngine::processChunk()
         wetR[k] += (wetR[k] - tiltLowR) * tiltGain;
         const float mid = 0.5f * (wetL[k] + wetR[k]);
         const float side = sideHighPass[1].process (sideHighPass[0].process (0.5f * (wetL[k] - wetR[k]))) * width;
+        // The auto-pan moves only what is above the bass: the mid is split in two with the same
+        // filters as the side (a Linkwitz-Riley crossover, so the halves add up without a dip),
+        // and the bass half stays in the middle. (Panning before the split instead loses most
+        // of the pan to the filters' phase shift.)
+        const float midBass = midLowPass[1].process (midLowPass[0].process (mid));
+        const float midHigh = midHighPass[1].process (midHighPass[0].process (mid));
         const float level = glideAt (&Gains::wet, i);
-        wetL[k] = (mid + side) * level;
-        wetR[k] = (mid - side) * level;
+        wetL[k] = (midBass + (midHigh + side) * panGainL[k]) * level;
+        wetR[k] = (midBass + (midHigh - side) * panGainR[k]) * level;
         finite = finite && std::isfinite (wetL[k]) && std::isfinite (wetR[k]);
     }
 
@@ -388,8 +418,15 @@ void SpaceEngine::processChunk()
         echo.reset();
         for (auto& f : sideHighPass)
             f.s1 = f.s2 = 0.0;
+        for (auto& f : midHighPass)
+            f.s1 = f.s2 = 0.0;
+        for (auto& f : midLowPass)
+            f.s1 = f.s2 = 0.0;
         wetL.fill (0.0f);
         wetR.fill (0.0f);
+        roomL.fill (0.0f);
+        roomR.fill (0.0f);
+        skyLevel = 0.0f;
     }
 }
 } // namespace spaceforge::dsp
