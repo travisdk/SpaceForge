@@ -16,8 +16,26 @@ inline const juce::Colour panelHi { 0xff1a1e3a };
 inline const juce::Colour outline { 0xff272c4d };
 inline const juce::Colour text { 0xffe4e6f5 };
 inline const juce::Colour dimText { 0xff8188ab };
-inline const juce::Colour glow { 0xffb7a3ff };   // lilac: macros, selection
-inline const juce::Colour ice { 0xff7fe6ff };    // cyan: Freeze
+// The accent: macros, selection, the cloud's middle colour. Lilac unless the user chose another
+// in the settings (message thread only; the editor repaints after a change).
+inline juce::Colour glow { 0xffb7a3ff };
+inline const juce::Colour ice { 0xff7fe6ff };    // cyan: favourites
+
+// The accent colours to choose from in the settings (from SubForge, same author).
+struct AccentChoice
+{
+    const char* name;
+    juce::Colour colour;
+};
+inline const std::vector<AccentChoice>& accentChoices()
+{
+    static const std::vector<AccentChoice> choices {
+        { "Lilac", juce::Colour (0xffb7a3ff) }, { "Lime", juce::Colour (0xffc8ff2e) }, { "Orange", juce::Colour (0xffff9f43) },
+        { "Amber", juce::Colour (0xffffc23d) }, { "Mint", juce::Colour (0xff3ddca0) },  { "Cyan", juce::Colour (0xff3dc8ff) },
+        { "Blue", juce::Colour (0xff5b8cff) },  { "Pink", juce::Colour (0xffff5fa2) },  { "Red", juce::Colour (0xffff5252) },
+    };
+    return choices;
+}
 
 inline juce::Font font (float height, bool bold = false)
 {
@@ -29,13 +47,11 @@ class LookAndFeel : public juce::LookAndFeel_V4
 public:
     LookAndFeel()
     {
+        refreshAccent();
         setColour (juce::ResizableWindow::backgroundColourId, background);
         setColour (juce::TextEditor::backgroundColourId, panel);
         setColour (juce::TextEditor::outlineColourId, outline);
-        setColour (juce::TextEditor::focusedOutlineColourId, glow.withAlpha (0.7f));
         setColour (juce::TextEditor::textColourId, text);
-        setColour (juce::TextEditor::highlightColourId, glow.withAlpha (0.3f));
-        setColour (juce::CaretComponent::caretColourId, glow);
         setColour (juce::ListBox::backgroundColourId, juce::Colours::transparentBlack);
         setColour (juce::ListBox::outlineColourId, juce::Colours::transparentBlack);
         setColour (juce::ScrollBar::thumbColourId, outline);
@@ -47,7 +63,6 @@ public:
         setColour (juce::Label::textColourId, dimText);
         setColour (juce::PopupMenu::backgroundColourId, panel);
         setColour (juce::PopupMenu::textColourId, text);
-        setColour (juce::PopupMenu::highlightedBackgroundColourId, glow.withAlpha (0.25f));
         setColour (juce::PopupMenu::highlightedTextColourId, text);
         setColour (juce::AlertWindow::backgroundColourId, panel);
         setColour (juce::AlertWindow::textColourId, text);
@@ -55,6 +70,15 @@ public:
         setColour (juce::TooltipWindow::backgroundColourId, panelHi);
         setColour (juce::TooltipWindow::textColourId, text);
         setColour (juce::TooltipWindow::outlineColourId, outline);
+    }
+
+    // The colours that follow the accent.
+    void refreshAccent()
+    {
+        setColour (juce::TextEditor::focusedOutlineColourId, glow.withAlpha (0.7f));
+        setColour (juce::TextEditor::highlightColourId, glow.withAlpha (0.3f));
+        setColour (juce::CaretComponent::caretColourId, glow);
+        setColour (juce::PopupMenu::highlightedBackgroundColourId, glow.withAlpha (0.25f));
     }
 
     // A ring: a dim track, the value as a glowing arc, a small bright dot at its tip.

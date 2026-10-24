@@ -259,6 +259,32 @@ void SpaceForgeProcessor::applyPreset (const Preset& preset)
     sendChangeMessage();
 }
 
+void SpaceForgeProcessor::setCurrentProgram (int index)
+{
+    // Hosts may ask from another thread; presets are applied on the message thread.
+    if (juce::MessageManager::getInstance()->isThisTheMessageThread())
+        loadPreset (index);
+    else
+        juce::MessageManager::callAsync ([safe = juce::WeakReference<SpaceForgeProcessor> (this), index] {
+            if (auto* p = safe.get())
+                p->loadPreset (index);
+        });
+}
+
+const juce::String SpaceForgeProcessor::getProgramName (int index)
+{
+    const auto* p = presetLibrary.at (index);
+    return p != nullptr ? p->name : juce::String ("Init");
+}
+
+void SpaceForgeProcessor::presetsChanged()
+{
+    presetLibrary.reload();
+    currentIndex = presetLibrary.indexOfKey (currentPreset.key());
+    updateHostDisplay (ChangeDetails().withProgramChanged (true));
+    sendChangeMessage();
+}
+
 void SpaceForgeProcessor::loadPreset (int libraryIndex)
 {
     if (const auto* p = presetLibrary.at (libraryIndex))
@@ -301,6 +327,7 @@ bool SpaceForgeProcessor::saveUserPreset (const juce::String& name)
     currentPreset = *presetLibrary.at (index); // the sound is already this: nothing to switch
     currentIndex = index;
     rolls.clear();
+    updateHostDisplay (ChangeDetails().withProgramChanged (true));
     sendChangeMessage();
     return true;
 }
@@ -390,6 +417,16 @@ juce::String SpaceForgeProcessor::auditionSoundName (int index) const
 juce::AudioProcessorEditor* SpaceForgeProcessor::createEditor()
 {
     return new SpaceForgeEditor (*this);
+}
+
+juce::PropertiesFile::Options SpaceForgeProcessor::settingsOptions()
+{
+    juce::PropertiesFile::Options o;
+    o.applicationName = "SpaceForge2";
+    o.filenameSuffix = ".settings";
+    o.osxLibrarySubFolder = "Application Support";
+    o.folderName = "SpaceForge2";
+    return o;
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()

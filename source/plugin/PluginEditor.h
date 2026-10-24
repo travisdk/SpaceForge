@@ -14,8 +14,9 @@
 // One window, one glance (layout and look from SpaceForge 1): the preset browser on the left;
 // on the right the preset's name with previous / next, favourite, the dice, undo and Save, the
 // Modes under it, the cloud picture with the four macros in front of it, and Mix alone in the
-// corner. Under every control what it does right now, in the same words the DAW shows. Laid out
-// at kWidth x kHeight and scaled to the window.
+// corner. Under every control what it does right now, in the same words the DAW shows. The gear
+// by the logo opens the settings (accent colour, size, animations, tooltips, preset files, About;
+// as in SubForge). Laid out at kWidth x kHeight and scaled to the window.
 class SpaceForgeEditor : public juce::AudioProcessorEditor, private juce::ChangeListener, private juce::Timer
 {
 public:
@@ -32,7 +33,7 @@ public:
     // A button drawn from a path: arrows, the heart, the dice, undo (from SpaceForge 1).
     struct ShapeButton : juce::Button
     {
-        enum class Shape { Left, Right, Heart, Dice, Back, Lock };
+        enum class Shape { Left, Right, Heart, Dice, Back, Lock, Gear };
         ShapeButton (Shape, const juce::String& tooltip);
         void paintButton (juce::Graphics&, bool highlighted, bool down) override;
         Shape shape;
@@ -51,6 +52,17 @@ public:
     void clickUndo() { undo.onClick(); processor.dispatchPendingMessages(); }
     PresetBrowser& presetBrowser() { return browser; }
 
+    // Settings, saved per user (processor.settings()). Public for the menu's actions and tests.
+    void setAccent (juce::Colour);
+    void setUiScale (float scale);
+    float uiScale() const { return scale; }
+    void setAnimations (bool on);
+    bool animationsOn() const { return cloud.isAnimated(); }
+    void setTooltips (bool on);
+    bool tooltipsOn() const { return tooltips != nullptr; }
+    static constexpr float kScales[] = { 0.75f, 1.0f, 1.25f, 1.5f, 2.0f };
+    static juce::String aboutText();
+
     // The sorting mode (standalone started with --sort [folder]): candidates one at a time with a
     // test sound, K keeps, S skips, left arrow undoes, 1-5 choose the test sound.
     void startSorting (const juce::File& candidateFolder);
@@ -66,6 +78,14 @@ private:
     void updateFromPreset();
     CloudView::State cloudState() const;
     void showSaveDialog();
+    void showSettingsMenu();
+    void importPresets();
+    void exportPreset();
+    void renamePreset();
+    void deletePreset();
+    void showAbout();
+    void askForName (const juce::String& title, const juce::String& message, const juce::String& initial, const juce::String& button,
+                     std::function<void (const juce::String&)> onName);
     void showCandidate();
     bool sortKey (const juce::KeyPress&);
     void applySizeLimits();
@@ -86,6 +106,7 @@ private:
     ShapeButton dice { ShapeButton::Shape::Dice, "Dice: Space, Echo, Motion and Tone to new positions; also the Mode when the lock is open (Shift+click: Mode this time). Mix stays." };
     ShapeButton modeLock { ShapeButton::Shape::Lock, "Mode lock: closed = the dice keeps the Mode, open = the dice picks a Mode too" };
     ShapeButton undo { ShapeButton::Shape::Back, "Undo the last roll (Ctrl+Z)" };
+    ShapeButton gear { ShapeButton::Shape::Gear, "Settings" };
     juce::TextButton save { "Save" };
     juce::Label presetName, presetInfo;
 
@@ -95,10 +116,12 @@ private:
     std::array<std::unique_ptr<juce::TextButton>, spaceforge::dsp::kNumModes> modeButtons;
 
     std::unique_ptr<juce::AlertWindow> saveDialog;
+    std::unique_ptr<juce::FileChooser> chooser;
+    float scale = 1.0f;
     int seenKnobJumps = 0;
 
     std::unique_ptr<CandidateSorter> sorter;
     juce::Label sortTitle, sortHelp;
 
-    juce::TooltipWindow tooltips { this, 600 };
+    std::unique_ptr<juce::TooltipWindow> tooltips;
 };

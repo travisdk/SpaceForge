@@ -34,10 +34,12 @@ public:
     // The longest tail that ends (Space below "∞"); above it, it is endless anyway.
     double getTailLengthSeconds() const override { return 140.0; }
 
-    int getNumPrograms() override { return 1; }
-    int getCurrentProgram() override { return 0; }
-    void setCurrentProgram (int) override {}
-    const juce::String getProgramName (int) override { return "Init"; }
+    // The presets as the host's program list (Init, factory, user), so the DAW can step through
+    // them too.
+    int getNumPrograms() override { return juce::jmax (1, presetLibrary.size()); }
+    int getCurrentProgram() override { return juce::jmax (0, currentIndex); }
+    void setCurrentProgram (int index) override;
+    const juce::String getProgramName (int index) override;
     void changeProgramName (int, const juce::String&) override {}
 
     void getStateInformation (juce::MemoryBlock& destData) override;
@@ -65,6 +67,14 @@ public:
     // Whether the controls still say what the preset says (the editor shows * when not).
     bool presetUnchanged() const;
     PresetLibrary& library() { return presetLibrary; }
+    // After the user folder changed (import, rename, delete): the list again, the current
+    // preset found again by its key, the host told.
+    void presetsChanged();
+    // The user's preferences (accent, size, animations, tooltips, favourites, Mode lock): per
+    // user, not per project.
+    juce::PropertiesFile& settings() { return userSettings; }
+    // The tests use a settings file of their own instead of the user's (set before construction).
+    static void setSettingsFileForTests (const juce::File& file) { settingsFileOverride() = file; }
     void setFavourite (const juce::String& key, bool on);
     // Saves the controls as a user preset and makes it the current one; false if it failed.
     bool saveUserPreset (const juce::String& name);
@@ -118,19 +128,22 @@ private:
     int currentIndex = 0;
     PresetLibrary presetLibrary;
     // Per-user preferences (favourites), not per project (from SpaceForge 1).
-    juce::PropertiesFile userSettings { [] {
-        juce::PropertiesFile::Options o;
-        o.applicationName = "SpaceForge2";
-        o.filenameSuffix = ".settings";
-        o.osxLibrarySubFolder = "Application Support";
-        o.folderName = "SpaceForge2";
-        return o;
-    }() };
+    static juce::PropertiesFile::Options settingsOptions();
+    juce::PropertiesFile userSettings { settingsFile(), settingsOptions() };
     spaceforge::VariationHistory rolls;
     bool modeLocked = true;
     juce::Random random;
     int jumps = 0;
     spaceforge::MacroKnobs jumpFrom {};
+    static juce::File& settingsFileOverride()
+    {
+        static juce::File file;
+        return file;
+    }
+    static juce::File settingsFile()
+    {
+        return settingsFileOverride() != juce::File() ? settingsFileOverride() : settingsOptions().getDefaultFile();
+    }
     spaceforge::MacroKnobs knobs() const;
     void setKnobs (const spaceforge::MacroKnobs&, int mode);
 
@@ -141,5 +154,6 @@ private:
     float inputFast = 0.0f, inputSlow = 0.0f; // the input's envelope, per block (hits)
     int onsetHold = 0;                        // blocks until the next hit may count
 
+    JUCE_DECLARE_WEAK_REFERENCEABLE (SpaceForgeProcessor)
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SpaceForgeProcessor)
 };

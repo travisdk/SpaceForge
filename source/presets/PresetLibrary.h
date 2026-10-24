@@ -41,7 +41,22 @@ public:
     // after reloading, or -1 if the name is unusable or the file could not be written.
     int saveUserPreset (const spaceforge::Preset& preset);
 
+    // Reads preset files from elsewhere: each goes through the same checks as every preset
+    // (size, values, name) and is written anew into the user folder, so nothing of the original
+    // file but the checked values arrives. A name already taken gets " 2", " 3"... Returns how
+    // many were imported; the names of the files that were not presets go into `refused`.
+    int importFiles (const juce::Array<juce::File>& files, juce::StringArray& refused);
+    // Writes a preset to any file (export); false if it could not be written.
+    static bool exportPreset (const spaceforge::Preset& preset, const juce::File& file);
+    // User presets only: a new name (the file follows), or into the trash. Return the new index /
+    // success; factory presets are never changed.
+    int renameUserPreset (int index, const juce::String& newName);
+    bool deleteUserPreset (int index);
+    static constexpr int kMaxImportFiles = 500;
+
     static juce::File userFolder();
+    // The tests use a folder of their own instead of the user's documents.
+    static void setUserFolderForTests (const juce::File& folder);
     static std::vector<spaceforge::Preset> loadFactory();
 
     static constexpr int kMaxUserPresets = 2000;

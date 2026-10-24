@@ -17,7 +17,6 @@
 //   Motion  how much the cloud moves: still at 0, drifting and undulating at 1, and it sways
 //           left and right with the actual auto-pan
 //   Tone    the colour: deep indigo (dark) .. almost white (bright)
-//   Freeze  the cloud stands still and turns icy
 //
 // It glows with the wet signal.
 class CloudView : public juce::Component, private juce::Timer
@@ -41,6 +40,11 @@ public:
 
     // For screenshots and tests: advance the animation by `seconds` without waiting.
     void advance (float seconds);
+    // Animations off (settings): the picture stands still and only follows the knobs, without
+    // drifting, glowing or rings. refreshStill() takes the current state (call it now and then).
+    void setAnimated (bool on);
+    bool isAnimated() const { return animated; }
+    void refreshStill();
     int ringsStarted() const { return ringsSoFar; } // echo rings sent out so far
 
 private:
@@ -66,5 +70,6 @@ private:
     int seenOnsets = -1;
     float ringLife = 1.5f; // seconds; set per train so all its rings are out at once
     float energy = 0.0f, time = 0.0f;
+    bool animated = true;
     float shownSpace = 0.6f, shownTone = 0.5f, shownMotion = 0.5f, shownPan = 0.0f, shownFrozen = 0.0f;
 };

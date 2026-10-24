@@ -4,6 +4,7 @@
 #include "plugin/PluginEditor.h"
 #include "plugin/Defaults.h"
 #include "SpaceForgeVersion.h"
+#include "presets/PresetFiles.h"
 
 using namespace spaceforge;
 
@@ -120,6 +121,21 @@ void SpaceForgeEditor::ShapeButton::paintButton (juce::Graphics& g, bool highlig
             g.strokePath (p, juce::PathStrokeType (1.8f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
             return;
         }
+        case Shape::Gear:
+        {
+            // a cog: eight teeth around a ring
+            const auto centre = area.getCentre();
+            const float outer = area.getWidth() * 0.5f, inner = outer * 0.62f;
+            g.setColour (colour);
+            for (int i = 0; i < 8; ++i)
+            {
+                juce::Path tooth;
+                tooth.addRoundedRectangle (-outer * 0.16f, -outer, outer * 0.32f, outer * 0.4f, 1.0f);
+                g.fillPath (tooth, juce::AffineTransform::rotation ((float) i * juce::MathConstants<float>::pi / 4.0f).translated (centre));
+            }
+            g.drawEllipse (juce::Rectangle<float> (inner * 2.0f, inner * 2.0f).withCentre (centre), outer * 0.28f);
+            return;
+        }
         case Shape::Dice:
         {
             // the five face: rounded square with five pips
@@ -166,8 +182,10 @@ SpaceForgeEditor::SpaceForgeEditor (SpaceForgeProcessor& p)
     save.setTooltip ("Save as your own preset");
     save.onClick = [this] { showSaveDialog(); };
     content.addAndMakeVisible (save);
+    gear.onClick = [this] { showSettingsMenu(); };
+    content.addAndMakeVisible (gear);
 
-    presetName.setFont (theme::font (26.0f, true));
+    presetName.setFont (theme::font (22.0f, true));
     presetName.setColour (juce::Label::textColourId, theme::text);
     presetName.setJustificationType (juce::Justification::centred);
     presetInfo.setFont (theme::font (13.0f));
@@ -239,6 +257,18 @@ SpaceForgeEditor::SpaceForgeEditor (SpaceForgeProcessor& p)
     if (juce::JUCEApplicationBase::isStandaloneApp())
         setWantsKeyboardFocus (true); // the arrow keys step through presets
 
+    // the user's settings (per user, not per project)
+    auto& settings = processor.settings();
+    const auto accent = juce::Colour::fromString (settings.getValue ("accent", theme::accentChoices().front().colour.toString()));
+    setAccent (std::any_of (theme::accentChoices().begin(), theme::accentChoices().end(), [&accent] (const auto& c) { return c.colour == accent; })
+                   ? accent
+                   : theme::accentChoices().front().colour);
+    setTooltips (settings.getBoolValue ("tooltips", true));
+    setAnimations (settings.getBoolValue ("animations", true));
+    scale = (float) settings.getDoubleValue ("scale", 1.0);
+    if (std::none_of (std::begin (kScales), std::end (kScales), [this] (float s) { return std::abs (s - scale) < 0.01f; }))
+        scale = 1.0f;
+
     seenKnobJumps = processor.knobJumpCount();
     processor.addChangeListener (this);
     updateFromPreset();
@@ -263,7 +293,7 @@ void SpaceForgeEditor::changeListenerCallback (juce::ChangeBroadcaster*)
     if (processor.knobJumpCount() != seenKnobJumps)
     {
         seenKnobJumps = processor.knobJumpCount();
-        for (int m = 0; m < kNumMacros; ++m)
+        for (int m = 0; m < kNumMacros && animationsOn(); ++m)
             macros[(size_t) m]->animate (processor.knobJumpFrom()[(size_t) m], valueOf (processor.parameters(), kMacros[m].id));
     }
     updateFromPreset();
@@ -309,6 +339,8 @@ void SpaceForgeEditor::timerCallback()
         presetName.setText (shownName, juce::dontSendNotification);
 
     mixValue.setText (juce::String (juce::roundToInt (valueOf (apvts, plugin::kMixId) * 100.0f)) + " %", juce::dontSendNotification);
+    if (! cloud.isAnimated())
+        cloud.refreshStill();
 }
 
 int SpaceForgeEditor::shownMode() const
@@ -335,30 +367,210 @@ CloudView::State SpaceForgeEditor::cloudState() const
     return st;
 }
 
-void SpaceForgeEditor::showSaveDialog()
+void SpaceForgeEditor::askForName (const juce::String& title, const juce::String& message, const juce::String& initial,
+                                   const juce::String& button, std::function<void (const juce::String&)> onName)
 {
-    const auto& preset = processor.preset();
-    saveDialog = std::make_unique<juce::AlertWindow> ("Save preset", "Saved in " + PresetLibrary::userFolder().getFullPathName(),
-                                                      juce::MessageBoxIconType::NoIcon, this);
+    saveDialog = std::make_unique<juce::AlertWindow> (title, message, juce::MessageBoxIconType::NoIcon, this);
     saveDialog->setLookAndFeel (&lookAndFeel);
-    saveDialog->addTextEditor ("name", preset.isFactory ? preset.name + " (mine)" : preset.name, "Name");
-    saveDialog->addButton ("Save", 1, juce::KeyPress (juce::KeyPress::returnKey));
+    saveDialog->addTextEditor ("name", initial, "Name");
+    saveDialog->addButton (button, 1, juce::KeyPress (juce::KeyPress::returnKey));
     saveDialog->addButton ("Cancel", 0, juce::KeyPress (juce::KeyPress::escapeKey));
-    saveDialog->enterModalState (true, juce::ModalCallbackFunction::create ([safe = juce::Component::SafePointer (this)] (int result) {
+    saveDialog->enterModalState (true, juce::ModalCallbackFunction::create ([safe = juce::Component::SafePointer (this), onName] (int result) {
         if (safe == nullptr || safe->saveDialog == nullptr)
             return;
         const auto name = presets::sanitiseName (safe->saveDialog->getTextEditorContents ("name"));
         safe->saveDialog.reset();
-        if (result == 1 && name.isNotEmpty() && ! safe->processor.saveUserPreset (name))
-            juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon, "Save preset",
-                                                    "The preset could not be saved in " + PresetLibrary::userFolder().getFullPathName());
+        if (result == 1 && name.isNotEmpty())
+            onName (name);
     }));
+}
+
+void SpaceForgeEditor::showSaveDialog()
+{
+    const auto& preset = processor.preset();
+    askForName ("Save preset", "Saved in " + PresetLibrary::userFolder().getFullPathName(),
+                preset.isFactory ? preset.name + " (mine)" : preset.name, "Save", [this] (const juce::String& name) {
+                    if (! processor.saveUserPreset (name))
+                        juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon, "Save preset",
+                                                                "The preset could not be saved in " + PresetLibrary::userFolder().getFullPathName());
+                });
+}
+
+// --- settings (as in SubForge) -------------------------------------------------------------------
+
+void SpaceForgeEditor::showSettingsMenu()
+{
+    juce::PopupMenu menu;
+    menu.setLookAndFeel (&lookAndFeel);
+    menu.addSectionHeader ("Accent colour");
+    for (const auto& choice : theme::accentChoices())
+    {
+        juce::PopupMenu::Item item (choice.name);
+        item.colour = choice.colour;
+        item.isTicked = choice.colour == theme::glow;
+        item.action = [this, colour = choice.colour] { setAccent (colour); };
+        menu.addItem (item);
+    }
+    menu.addSectionHeader ("Interface size");
+    for (const float s : kScales)
+        menu.addItem (juce::String (juce::roundToInt (s * 100.0f)) + " %", true, std::abs (scale - s) < 0.01f, [this, s] { setUiScale (s); });
+    menu.addSeparator();
+    menu.addItem ("Animations", true, animationsOn(), [this] { setAnimations (! animationsOn()); });
+    menu.addItem ("Show tooltips", true, tooltipsOn(), [this] { setTooltips (! tooltipsOn()); });
+
+    const auto& preset = processor.preset();
+    const bool user = ! preset.isFactory && preset.file.existsAsFile();
+    menu.addSectionHeader ("Presets");
+    menu.addItem ("Import presets...", [this] { importPresets(); });
+    menu.addItem ("Export \"" + preset.name + "\"...", [this] { exportPreset(); });
+    menu.addItem ("Rename \"" + (user ? preset.name : juce::String ("user preset")) + "\"...", user, false, [this] { renamePreset(); });
+    menu.addItem ("Delete \"" + (user ? preset.name : juce::String ("user preset")) + "\"", user, false, [this] { deletePreset(); });
+    menu.addItem ("Open preset folder", [] {
+        const auto folder = PresetLibrary::userFolder();
+        folder.createDirectory();
+        files::openFolder (folder);
+    });
+    menu.addItem ("Rescan presets", [this] { processor.presetsChanged(); });
+    menu.addSeparator();
+    menu.addItem ("About SpaceForge 2...", [this] { showAbout(); });
+    menu.addItem ("Version " SPACEFORGE_VERSION_STRING, false, false, {});
+    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&gear).withMinimumWidth (200).withDeletionCheck (*this));
+}
+
+void SpaceForgeEditor::setAccent (juce::Colour colour)
+{
+    theme::glow = colour;
+    lookAndFeel.refreshAccent();
+    const juce::Colour accents[] = { theme::glow, theme::glow.withRotatedHue (-0.06f), theme::glow.withRotatedHue (0.06f),
+                                     theme::ice.interpolatedWith (theme::glow, 0.5f) };
+    for (int m = 0; m < kNumMacros; ++m)
+        macros[(size_t) m]->slider.setColour (juce::Slider::rotarySliderFillColourId, accents[m]);
+    for (auto& button : modeButtons)
+    {
+        button->setColour (juce::TextButton::buttonOnColourId, theme::glow.withAlpha (0.22f));
+        button->setColour (juce::TextButton::textColourOnId, theme::glow);
+    }
+    logo.setColour (juce::Label::textColourId, theme::glow);
+    sortTitle.setColour (juce::Label::textColourId, theme::glow);
+    processor.settings().setValue ("accent", colour.toString());
+    repaint();
+    content.repaint();
+}
+
+void SpaceForgeEditor::setUiScale (float s)
+{
+    scale = juce::jlimit (kScales[0], kScales[std::size (kScales) - 1], std::isfinite (s) ? s : 1.0f);
+    processor.settings().setValue ("scale", (double) scale);
+    applySizeLimits();
+}
+
+void SpaceForgeEditor::setAnimations (bool on)
+{
+    cloud.setAnimated (on);
+    processor.settings().setValue ("animations", on);
+}
+
+void SpaceForgeEditor::setTooltips (bool on)
+{
+    if (on && tooltips == nullptr)
+        tooltips = std::make_unique<juce::TooltipWindow> (this, 600);
+    else if (! on)
+        tooltips.reset();
+    processor.settings().setValue ("tooltips", on);
+}
+
+void SpaceForgeEditor::importPresets()
+{
+    chooser = std::make_unique<juce::FileChooser> ("Import presets", juce::File::getSpecialLocation (juce::File::userDocumentsDirectory), "*.json");
+    chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles | juce::FileBrowserComponent::canSelectMultipleItems,
+                          [safe = juce::Component::SafePointer (this)] (const juce::FileChooser& fc) {
+                              if (safe == nullptr || fc.getResults().isEmpty())
+                                  return;
+                              juce::StringArray refused;
+                              const int imported = safe->processor.library().importFiles (fc.getResults(), refused);
+                              safe->processor.presetsChanged();
+                              juce::String text = juce::String (imported) + (imported == 1 ? " preset imported." : " presets imported.");
+                              if (! refused.isEmpty())
+                                  text << "\n\nNot presets (skipped): " << refused.joinIntoString (", ");
+                              juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::InfoIcon, "Import presets", text);
+                          });
+}
+
+void SpaceForgeEditor::exportPreset()
+{
+    // The controls as they are now, under the preset's name.
+    auto p = processor.preset();
+    const auto& apvts = processor.parameters();
+    p.mode = shownMode();
+    p.space = valueOf (apvts, plugin::kSpaceId);
+    p.echo = valueOf (apvts, plugin::kEchoId);
+    p.motion = valueOf (apvts, plugin::kMotionId);
+    p.tone = valueOf (apvts, plugin::kToneId);
+    p.mix = valueOf (apvts, plugin::kMixId);
+    const auto start = juce::File::getSpecialLocation (juce::File::userDocumentsDirectory).getChildFile (juce::File::createLegalFileName (p.name) + ".json");
+    chooser = std::make_unique<juce::FileChooser> ("Export preset", start, "*.json");
+    chooser->launchAsync (juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles | juce::FileBrowserComponent::warnAboutOverwriting,
+                          [p] (const juce::FileChooser& fc) {
+                              const auto file = fc.getResult();
+                              if (file != juce::File() && ! PresetLibrary::exportPreset (p, file.withFileExtension ("json")))
+                                  juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon, "Export preset",
+                                                                          "Could not write " + file.getFullPathName());
+                          });
+}
+
+void SpaceForgeEditor::renamePreset()
+{
+    const auto& preset = processor.preset();
+    if (preset.isFactory)
+        return;
+    askForName ("Rename preset", {}, preset.name, "Rename", [this] (const juce::String& name) {
+        const int index = processor.library().renameUserPreset (processor.presetIndex(), name);
+        if (index >= 0)
+            processor.loadPreset (index);
+        processor.presetsChanged();
+    });
+}
+
+void SpaceForgeEditor::deletePreset()
+{
+    const auto& preset = processor.preset();
+    if (preset.isFactory)
+        return;
+    juce::AlertWindow::showOkCancelBox (juce::MessageBoxIconType::QuestionIcon, "Delete preset?",
+                                        "\"" + preset.name + "\" will be moved to the trash.", "Delete", "Cancel", this,
+                                        juce::ModalCallbackFunction::create ([safe = juce::Component::SafePointer (this)] (int result) {
+                                            if (safe == nullptr || result != 1)
+                                                return;
+                                            safe->processor.library().deleteUserPreset (safe->processor.presetIndex());
+                                            safe->processor.presetsChanged();
+                                        }));
+}
+
+juce::String SpaceForgeEditor::aboutText()
+{
+    return juce::String::fromUTF8 ("SpaceForge 2 " SPACEFORGE_VERSION_STRING "\n"
+                                   "© 2026 Henrik Juhl. Free software under the GNU Affero General Public License v3 or later.\n\n"
+                                   "The rooms use the Cloud Seed algorithm by Ghost Note Audio (CloudSeedCore, MIT), "
+                                   "originally by Valdemar Erlingsson. SpaceForge 2 is not a Ghost Note Audio product.\n"
+                                   "The granular texture uses the Clouds DSP code and stmlib by Emilie Gillet (MIT).\n"
+                                   "Built with JUCE (AGPLv3) and clap-juce-extensions (MIT).\n\n"
+                                   "Full notices: THIRD_PARTY.md in the source.");
+}
+
+void SpaceForgeEditor::showAbout()
+{
+    juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::NoIcon, "About SpaceForge 2", aboutText(), "Close", this);
 }
 
 bool SpaceForgeEditor::keyPressed (const juce::KeyPress& key)
 {
     if (sorter != nullptr)
         return sortKey (key);
+    if (key == juce::KeyPress ('s', juce::ModifierKeys::commandModifier, 0))
+    {
+        showSaveDialog();
+        return true;
+    }
     if (key == juce::KeyPress ('z', juce::ModifierKeys::commandModifier, 0))
     {
         processor.undoRoll();
@@ -384,7 +596,7 @@ void SpaceForgeEditor::applySizeLimits()
     setResizeLimits (juce::roundToInt (kWidth * kMinScale), juce::roundToInt (designHeight() * kMinScale),
                      juce::roundToInt (kWidth * kMaxScale), juce::roundToInt (designHeight() * kMaxScale));
     getConstrainer()->setFixedAspectRatio ((double) kWidth / (double) designHeight());
-    setSize (kWidth, designHeight());
+    setSize (juce::roundToInt (kWidth * scale), juce::roundToInt (designHeight() * scale));
 }
 
 juce::File SpaceForgeEditor::sortFolderFromCommandLine()
@@ -481,7 +693,9 @@ void SpaceForgeEditor::resized()
 
     // left: the logo and the browser
     auto left = area.removeFromLeft (kBrowserWidth);
-    logo.setBounds (left.removeFromTop (34).withTrimmedLeft (2));
+    auto logoRow = left.removeFromTop (34);
+    gear.setBounds (logoRow.removeFromRight (34).withSizeKeepingCentre (30, 30));
+    logo.setBounds (logoRow.withTrimmedLeft (2));
     left.removeFromTop (4);
     browser.setBounds (left);
     area.removeFromLeft (14);

@@ -4,6 +4,7 @@
 #include "presets/PresetLibrary.h"
 #include "SpaceForgePresets.h"
 #include "dsp/Modes.h"
+#include "presets/PresetFiles.h"
 
 using namespace spaceforge;
 
@@ -39,8 +40,24 @@ std::vector<Preset> PresetLibrary::loadFactory()
     return result;
 }
 
+namespace
+{
+juce::File& userFolderOverride()
+{
+    static juce::File folder;
+    return folder;
+}
+} // namespace
+
+void PresetLibrary::setUserFolderForTests (const juce::File& folder)
+{
+    userFolderOverride() = folder;
+}
+
 juce::File PresetLibrary::userFolder()
 {
+    if (userFolderOverride() != juce::File())
+        return userFolderOverride();
     return juce::File::getSpecialLocation (juce::File::userDocumentsDirectory).getChildFile ("SpaceForge2").getChildFile ("Presets");
 }
 
@@ -146,4 +163,67 @@ int PresetLibrary::saveUserPreset (const Preset& preset)
         if (presets[(size_t) i].file == file)
             return i;
     return -1;
+}
+
+int PresetLibrary::importFiles (const juce::Array<juce::File>& files, juce::StringArray& refused)
+{
+    int imported = 0;
+    for (int i = 0; i < juce::jmin (files.size(), kMaxImportFiles); ++i)
+    {
+        auto preset = presets::fromFile (files[i]);
+        if (! preset)
+        {
+            refused.add (files[i].getFileName());
+            continue;
+        }
+        preset->isFactory = false;
+        const auto base = preset->name;
+        auto taken = [this] (const juce::String& name) {
+            return std::any_of (presets.begin(), presets.end(), [&name] (const Preset& p) { return p.name.equalsIgnoreCase (name); });
+        };
+        for (int n = 2; taken (preset->name) && n < 1000; ++n)
+            preset->name = presets::sanitiseName (base.substring (0, presets::kMaxNameLength - 6) + " " + juce::String (n));
+        if (saveUserPreset (*preset) >= 0)
+            ++imported;
+        else
+            refused.add (files[i].getFileName());
+    }
+    return imported;
+}
+
+bool PresetLibrary::exportPreset (const Preset& preset, const juce::File& file)
+{
+    return file.replaceWithText (presets::toJson (preset));
+}
+
+int PresetLibrary::renameUserPreset (int index, const juce::String& newName)
+{
+    const auto* p = at (index);
+    const auto name = presets::sanitiseName (newName);
+    if (p == nullptr || p->isFactory || name.isEmpty())
+        return -1;
+    Preset renamed = *p;
+    renamed.name = name;
+    const auto oldFile = p->file;
+    const int saved = saveUserPreset (renamed);
+    if (saved < 0)
+        return -1;
+    const auto newFile = presets[(size_t) saved].file;
+    if (oldFile != newFile && oldFile.isAChildOf (userFolder()))
+        oldFile.deleteFile();
+    reload();
+    for (int i = 0; i < size(); ++i)
+        if (presets[(size_t) i].file == newFile)
+            return i;
+    return -1;
+}
+
+bool PresetLibrary::deleteUserPreset (int index)
+{
+    const auto* p = at (index);
+    if (p == nullptr || p->isFactory || ! p->file.isAChildOf (userFolder()))
+        return false;
+    const bool ok = files::moveToTrash (p->file);
+    reload();
+    return ok;
 }

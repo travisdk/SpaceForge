@@ -8,6 +8,7 @@
 // none named after another product, and each as loud as its Mode at Init (±1 dB, as when sorted).
 
 #include <chrono>
+#include <cstdlib>
 #include "TestUtils.h"
 #include "dsp/Modes.h"
 #include "plugin/Defaults.h"
@@ -254,16 +255,66 @@ void testFactory()
     }
     std::printf ("Factory levels: largest difference from the Mode at Init %.2f dB\n", worst);
 }
+void testImportRenameDelete()
+{
+    // Import: real presets come in (written anew, checked), a taken name gets " 2", anything else
+    // is refused by name. Rename moves the file; delete goes to the trash (a test trash here).
+    const auto from = juce::File::createTempFile ("sf2-import");
+    from.createDirectory();
+    Preset a;
+    a.name = "Init"; // taken by the factory Init
+    a.space = 0.33f;
+    from.getChildFile ("a.json").replaceWithText (presets::toJson (a));
+    from.getChildFile ("b.json").replaceWithText ("{\"name\": \"../evil\", \"space\": \"NaN\", \"mode\": \"Hall\", \"payload\": \"x\"}");
+    from.getChildFile ("c.json").replaceWithText ("not a preset");
+    PresetLibrary lib;
+    const int before = lib.size();
+    juce::StringArray refused;
+    const int imported = lib.importFiles (from.findChildFiles (juce::File::findFiles, false, "*.json"), refused);
+    CHECK (imported == 2);
+    CHECK (refused.size() == 1 && refused[0] == "c.json");
+    CHECK (lib.size() == before + 2);
+    const int copy = lib.indexOf ("Init 2"), evil = lib.indexOf ("evil");
+    CHECK (copy > 0 && evil > 0);
+    if (copy > 0)
+        CHECK (std::abs (lib.at (copy)->space - 0.33f) < 1.0e-3f && ! lib.at (copy)->isFactory);
+    if (evil > 0)
+    {
+        CHECK (lib.at (evil)->file.isAChildOf (PresetLibrary::userFolder()));
+        CHECK (! lib.at (evil)->file.loadFileAsString().contains ("payload")); // only the checked values arrive
+    }
+
+    const int renamed = lib.renameUserPreset (copy, "Mine");
+    CHECK (renamed > 0 && lib.at (renamed)->name == "Mine" && lib.indexOf ("Init 2") < 0);
+    CHECK (PresetLibrary::userFolder().getChildFile ("Mine.json").existsAsFile());
+    CHECK (lib.renameUserPreset (0, "Nope") < 0); // factory presets never change
+
+#if JUCE_LINUX // (elsewhere the file would go to the user's real trash)
+    const juce::TemporaryFile trash ("trash");
+    ::setenv ("XDG_DATA_HOME", trash.getFile().getFullPathName().toRawUTF8(), 1); // (Linux: where the trash is)
+    CHECK (lib.deleteUserPreset (lib.indexOf ("Mine")));
+    CHECK (lib.indexOf ("Mine") < 0 && ! PresetLibrary::userFolder().getChildFile ("Mine.json").existsAsFile());
+    CHECK (! lib.deleteUserPreset (0));
+    trash.getFile().deleteRecursively();
+#endif
+    from.deleteRecursively();
+}
 } // namespace
 
 int main()
 {
     juce::ScopedJuceInitialiser_GUI juce;
+    // Never the user's own settings or presets.
+    const juce::TemporaryFile settings ("settings"), folder ("presets");
+    SpaceForgeProcessor::setSettingsFileForTests (settings.getFile());
+    PresetLibrary::setUserFolderForTests (folder.getFile());
     testRoundTrip();
     testHostile();
     testFuzz();
     testSorter();
     testApply();
     testFactory();
+    testImportRenameDelete();
+    folder.getFile().deleteRecursively();
     return finish ("presets");
 }

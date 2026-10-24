@@ -251,14 +251,71 @@ void testHostileState()
 }
 } // namespace
 
+void testSettings()
+{
+    // The settings (per user): accent colour, size, animations, tooltips; kept for the next
+    // window. The host's program list holds the presets. About credits the engines.
+    SpaceForgeProcessor p;
+    {
+        std::unique_ptr<juce::AudioProcessorEditor> editor (p.createEditor());
+        auto* view = dynamic_cast<SpaceForgeEditor*> (editor.get());
+        const auto mint = theme::accentChoices()[4].colour;
+        view->setAccent (mint);
+        CHECK (theme::glow == mint);
+        view->setUiScale (1.5f);
+        CHECK (editor->getWidth() == SpaceForgeEditor::kWidth * 3 / 2);
+        view->setAnimations (false);
+        CHECK (! view->animationsOn());
+        view->clickDice(); // the knobs jump straight there (no glide)
+        CHECK (! view->macro (0).isAnimating());
+        view->setTooltips (false);
+        CHECK (! view->tooltipsOn());
+    }
+    {
+        std::unique_ptr<juce::AudioProcessorEditor> editor (p.createEditor());
+        auto* view = dynamic_cast<SpaceForgeEditor*> (editor.get());
+        CHECK (theme::glow == theme::accentChoices()[4].colour);
+        CHECK (std::abs (view->uiScale() - 1.5f) < 0.01f && ! view->animationsOn() && ! view->tooltipsOn());
+        view->setAccent (theme::accentChoices().front().colour);
+        view->setUiScale (1.0f);
+        view->setAnimations (true);
+        view->setTooltips (true);
+    }
+    // a hostile settings file: unknown colour and scale fall back
+    p.settings().setValue ("accent", "zzz");
+    p.settings().setValue ("scale", "1e309");
+    {
+        std::unique_ptr<juce::AudioProcessorEditor> editor (p.createEditor());
+        auto* view = dynamic_cast<SpaceForgeEditor*> (editor.get());
+        CHECK (theme::glow == theme::accentChoices().front().colour);
+        CHECK (std::abs (view->uiScale() - 1.0f) < 0.01f);
+    }
+
+    CHECK (p.getNumPrograms() == p.library().size() && p.getNumPrograms() >= 49);
+    CHECK (p.getProgramName (0) == "Init");
+    const int iron = p.library().indexOf ("Long Iron");
+    p.setCurrentProgram (iron);
+    CHECK (p.getCurrentProgram() == iron && p.presetName() == "Long Iron");
+
+    const auto about = SpaceForgeEditor::aboutText();
+    CHECK (about.contains ("Ghost Note Audio") && about.contains ("not a Ghost Note Audio product") && about.contains ("Emilie Gillet"));
+    CHECK (about.contains ("Affero"));
+}
+
 int main()
 {
     juce::ScopedJuceInitialiser_GUI juce;
+    // Never the user's own settings or presets.
+    const juce::TemporaryFile settings ("settings"), folder ("presets");
+    SpaceForgeProcessor::setSettingsFileForTests (settings.getFile());
+    PresetLibrary::setUserFolderForTests (folder.getFile());
     testProcessing (juce::AudioChannelSet::stereo());
     testProcessing (juce::AudioChannelSet::mono());
     testTexts();
     testEditor();
     testStateRoundTrip();
     testHostileState();
+    testSettings();
+    folder.getFile().deleteRecursively();
     return finish ("plugin");
 }

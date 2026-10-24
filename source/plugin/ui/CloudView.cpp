@@ -41,6 +41,36 @@ void CloudView::timerCallback()
     repaint();
 }
 
+void CloudView::setAnimated (bool on)
+{
+    animated = on;
+    if (on)
+        startTimerHz (30);
+    else
+    {
+        stopTimer();
+        refreshStill();
+    }
+}
+
+void CloudView::refreshStill()
+{
+    const auto now = stateSource();
+    auto moved = [] (float a, float b) { return std::abs (a - b) > 1.0e-4f; };
+    const bool changed = moved (now.space, shownSpace) || moved (now.tone, shownTone) || moved (now.motion, shownMotion) || ! rings.empty();
+    state = now;
+    shownSpace = now.space;
+    shownTone = now.tone;
+    shownMotion = now.motion;
+    shownPan = 0.0f;
+    energy = 0.3f; // a steady middle glow
+    rings.clear();
+    ringsLeft = 0;
+    seenOnsets = now.onsets;
+    if (changed)
+        repaint();
+}
+
 void CloudView::advance (float seconds)
 {
     for (float t = 0.0f; t < seconds; t += kFrameSeconds)
