@@ -98,6 +98,8 @@ void CloudView::step (float dt)
 
 void CloudView::paint (juce::Graphics& g)
 {
+    // The whole picture a quarter more transparent than at first (Henrik: it filled too much).
+    constexpr float opacity = 0.75f;
     const auto bounds = getLocalBounds().toFloat();
     const float side = juce::jmin (bounds.getWidth(), bounds.getHeight());
     const auto colour = toneColour (shownTone).interpolatedWith (theme::ice, 0.7f * shownFrozen);
@@ -118,14 +120,14 @@ void CloudView::paint (juce::Graphics& g)
         const juce::Point<float> at (centre.x + (b.x + drift * std::sin (time * b.speed + b.phase)) * cloudRadius,
                                      centre.y + (b.y + drift * std::cos (time * 0.8f * b.speed + b.phase)) * cloudRadius);
         const float radius = cloudRadius * b.radius * undulate;
-        const float alpha = 0.16f + 0.16f * energy; // visible even in silence
+        const float alpha = (0.16f + 0.16f * energy) * opacity; // visible even in silence
         juce::ColourGradient gradient (colour.withAlpha (alpha), at.x, at.y, colour.withAlpha (0.0f), at.x + radius, at.y, true);
         g.setGradientFill (gradient);
         g.fillEllipse (juce::Rectangle<float> (radius * 2.0f, radius * 2.0f).withCentre (at));
     }
 
     // the cloud's edge, so its size can be read
-    g.setColour (colour.withAlpha (0.35f + 0.2f * energy));
+    g.setColour (colour.withAlpha ((0.35f + 0.2f * energy) * opacity));
     g.drawEllipse (juce::Rectangle<float> (cloudRadius * 2.0f, cloudRadius * 2.0f).withCentre (centre), 1.5f);
 
     // Echo rings: from the cloud's edge outwards; later repeats thinner and fainter, but visible
@@ -133,7 +135,7 @@ void CloudView::paint (juce::Graphics& g)
     {
         const float t = r.age / ringLife;
         const float radius = cloudRadius + t * 0.3f * side;
-        const float alpha = (0.25f + 0.55f * r.strength) * (1.0f - t);
+        const float alpha = (0.25f + 0.55f * r.strength) * (1.0f - t) * opacity;
         g.setColour (colour.withAlpha (alpha));
         g.drawEllipse (juce::Rectangle<float> (radius * 2.0f, radius * 2.0f).withCentre (centre), 1.0f + 1.5f * r.strength);
     }

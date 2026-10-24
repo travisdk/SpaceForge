@@ -110,7 +110,6 @@ void testEditor()
     set (plugin::kSpaceId, 0.25f);
     set (plugin::kEchoId, 0.5f);
     set (plugin::kMixId, 0.7f);
-    set (plugin::kFreezeId, 1.0f);
     std::unique_ptr<juce::AudioProcessorEditor> editor (p.createEditor());
     auto* view = dynamic_cast<SpaceForgeEditor*> (editor.get());
     CHECK (view != nullptr);
@@ -121,7 +120,37 @@ void testEditor()
     CHECK (view->macro (0).getValueText() == dawText (plugin::kSpaceId));
     CHECK (view->macro (1).getValueText() == dawText (plugin::kEchoId));
     CHECK (view->mixText() == "70 %");
-    CHECK (view->freezeText() == "holder rummet");
+    CHECK (view->presetText() == "Init *"); // knobs turned since Init
+    CHECK (p.parameters().getParameter ("freeze") == nullptr); // out for now (branch feature/freeze)
+
+    // The dice moves the four macros (at least two clearly), never Mode or Mix; undo goes back.
+    auto knob = [&p] (const char* id) { return p.parameters().getRawParameterValue (id)->load(); };
+    const float before[] = { knob (plugin::kSpaceId), knob (plugin::kEchoId), knob (plugin::kMotionId), knob (plugin::kToneId) };
+    const float modeBefore = knob (plugin::kModeId);
+    view->clickDice();
+    int moved = 0;
+    const char* ids[] = { plugin::kSpaceId, plugin::kEchoId, plugin::kMotionId, plugin::kToneId };
+    for (int m = 0; m < 4; ++m)
+        moved += std::abs (knob (ids[m]) - before[m]) >= 0.2f ? 1 : 0;
+    CHECK (moved >= 2);
+    CHECK (std::abs (knob (plugin::kMixId) - 0.7f) < 1.0e-4f && std::abs (knob (plugin::kModeId) - modeBefore) < 1.0e-4f);
+    CHECK (view->macro (0).isAnimating()); // the knobs glide on screen; the parameter is already there
+    view->clickDice();
+    view->clickUndo();
+    view->clickUndo();
+    for (int m = 0; m < 4; ++m)
+        CHECK (std::abs (knob (ids[m]) - before[m]) < 1.0e-4f);
+
+    // A preset from the browser's list: every control jumps, the name shows it unchanged.
+    const auto& lib = p.library();
+    const int steel = const_cast<PresetLibrary&> (lib).indexOf ("Steel Ricochet");
+    CHECK (steel > 0);
+    p.loadPreset (steel);
+    p.dispatchPendingMessages();
+    CHECK (view->presetText() == "Steel Ricochet");
+    CHECK (std::lround (knob (plugin::kModeId)) == 2);
+    p.step (1, view->presetBrowser().visiblePresets());
+    CHECK (p.presetIndex() == steel + 1);
 
     editor->setSize (SpaceForgeEditor::kWidth * 3 / 2, SpaceForgeEditor::kHeight * 3 / 2);
     CHECK (editor->getWidth() == SpaceForgeEditor::kWidth * 3 / 2);
@@ -131,7 +160,7 @@ void testEditor()
     const auto sound = analysis::makeBleeps (48000.0, 1.0).audio;
     juce::AudioBuffer<float> buffer (2, 1600);
     juce::MidiBuffer midi;
-    set (plugin::kFreezeId, 0.0f);
+    set (plugin::kEchoId, 0.5f);
     for (size_t pos = 0; pos + 1600 <= sound.l.size(); pos += 1600)
     {
         buffer.copyFrom (0, 0, &sound.l[pos], 1600);
@@ -147,12 +176,12 @@ void testEditor()
 void testStateRoundTrip()
 {
     SpaceForgeProcessor a;
+    a.applyPreset ([] { Preset x; x.name = "Long Iron"; x.mode = 2; return x; }());
     setParam (a, plugin::kSpaceId, 0.21f);
     setParam (a, plugin::kEchoId, 0.42f);
     setParam (a, plugin::kMotionId, 0.63f);
     setParam (a, plugin::kToneId, 0.84f);
     setParam (a, plugin::kMixId, 0.73f);
-    setParam (a, plugin::kFreezeId, 1.0f);
     juce::MemoryBlock state;
     a.getStateInformation (state);
 
@@ -163,7 +192,7 @@ void testStateRoundTrip()
     CHECK_RANGE (paramValue (b, plugin::kEchoId), 0.419, 0.421);
     CHECK_RANGE (paramValue (b, plugin::kMotionId), 0.629, 0.631);
     CHECK_RANGE (paramValue (b, plugin::kToneId), 0.839, 0.841);
-    CHECK (paramValue (b, plugin::kFreezeId) > 0.5f);
+    CHECK (b.presetName() == "Long Iron" && b.presetUnchanged()); // the name comes back, the values are the project's
 }
 
 void loadXml (SpaceForgeProcessor& p, const juce::String& xmlText)
@@ -179,9 +208,9 @@ void testHostileState()
     SpaceForgeProcessor p;
 
     // Not a number, out of range, the wrong type: defaults or clamped values, never garbage.
-    loadXml (p, "<PARAMS stateVersion=\"1\"><PARAM id=\"mix\" value=\"nan\"/><PARAM id=\"freeze\" value=\"inf\"/></PARAMS>");
+    loadXml (p, "<PARAMS stateVersion=\"1\" preset=\"../../x\"><PARAM id=\"mix\" value=\"nan\"/><PARAM id=\"freeze\" value=\"inf\"/></PARAMS>");
     CHECK_RANGE (paramValue (p, plugin::kMixId), plugin::kDefaultMix - 0.001, plugin::kDefaultMix + 0.001);
-    CHECK (paramValue (p, plugin::kFreezeId) < 0.5f);
+    CHECK (! p.presetName().containsChar ('/'));
 
     loadXml (p, "<PARAMS stateVersion=\"1\"><PARAM id=\"mix\" value=\"1e30\"/></PARAMS>");
     CHECK_RANGE (paramValue (p, plugin::kMixId), 0.999, 1.0);

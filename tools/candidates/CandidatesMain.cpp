@@ -130,7 +130,7 @@ std::string presetJson (const std::string& name, const dsp::MacroPositions& k)
 {
     return "{\n    \"name\": \"" + name + "\",\n    \"mode\": \"" + dsp::modeSetup (k.mode).name + "\",\n    \"space\": " + tidy (k.space)
            + ",\n    \"echo\": " + tidy (k.echo) + ",\n    \"motion\": " + tidy (k.motion) + ",\n    \"tone\": " + tidy (k.tone)
-           + ",\n    \"mix\": " + tidy (plugin::kDefaultMix) + ",\n    \"freeze\": false\n}\n";
+           + ",\n    \"mix\": " + tidy (plugin::kDefaultMix) + "\n}\n";
 }
 } // namespace
 

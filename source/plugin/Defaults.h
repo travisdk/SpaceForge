@@ -11,7 +11,6 @@ inline constexpr const char* kEchoId = "echo";
 inline constexpr const char* kMotionId = "motion";
 inline constexpr const char* kToneId = "tone";
 inline constexpr const char* kMixId = "mix";
-inline constexpr const char* kFreezeId = "freeze";
 inline constexpr const char* kModeId = "mode";
 inline constexpr float kDefaultMix = 0.4f;
 } // namespace spaceforge::plugin

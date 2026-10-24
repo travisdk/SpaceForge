@@ -37,8 +37,6 @@ int main (int argc, char* argv[])
             for (int m = 0; m < juce::jmin (4, values.size()); ++m)
                 processor.parameters().getParameter (ids[m])->setValueNotifyingHost (values[m].getFloatValue());
         }
-        if (option == "freeze")
-            processor.parameters().getParameter (spaceforge::plugin::kFreezeId)->setValueNotifyingHost (1.0f);
         if (option.startsWith ("play="))
             playSeconds = option.fromFirstOccurrenceOf ("=", false, false).getFloatValue();
     }

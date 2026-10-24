@@ -6,12 +6,13 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "analysis/TestSignals.h"
 #include "dsp/SpaceEngine.h"
-#include "presets/Preset.h"
+#include "presets/PresetLibrary.h"
+#include "presets/Variation.h"
 
 // Granular texture (Clouds) and echoes into the room (Cloud Seed), moved by the four macros
-// Space, Echo, Motion and Tone, plus Mix and Freeze, in one of the Modes. Stereo out, mono or
-// stereo in.
-class SpaceForgeProcessor : public juce::AudioProcessor
+// Space, Echo, Motion and Tone, plus Mix, in one of the Modes. Stereo out, mono or stereo in.
+// (Freeze is out for now, kept on the branch feature/freeze; the engine still has it.)
+class SpaceForgeProcessor : public juce::AudioProcessor, public juce::ChangeBroadcaster
 {
 public:
     SpaceForgeProcessor();
@@ -30,7 +31,7 @@ public:
     bool acceptsMidi() const override { return false; }
     bool producesMidi() const override { return false; }
     bool isMidiEffect() const override { return false; }
-    // The longest tail that ends (Space below "∞"); above it, and frozen, it is endless anyway.
+    // The longest tail that ends (Space below "∞"); above it, it is endless anyway.
     double getTailLengthSeconds() const override { return 140.0; }
 
     int getNumPrograms() override { return 1; }
@@ -52,11 +53,29 @@ public:
     double getBpm() const { return bpm.load(); }
 
     // A preset: every control jumps to its value (the DAW sees it), and the sound changes cleanly
-    // (SpaceEngine::jumpToMacros: a short fade, nothing of the old tail, no glide). Message thread.
+    // (SpaceEngine::jumpToMacros: a short fade, nothing of the old tail, no glide); the knobs
+    // then glide on screen only (knobJumpCount/From). Message thread, like everything below.
     void applyPreset (const spaceforge::Preset&);
+    void loadPreset (int libraryIndex);
+    // The next / previous of the presets shown in the browser (from SpaceForge 1).
+    void step (int delta, const std::vector<int>& visible);
+    const spaceforge::Preset& preset() const { return currentPreset; }
     const juce::String& presetName() const { return currentPreset.name; }
+    int presetIndex() const { return currentIndex; }
     // Whether the controls still say what the preset says (the editor shows * when not).
     bool presetUnchanged() const;
+    PresetLibrary& library() { return presetLibrary; }
+    void setFavourite (const juce::String& key, bool on);
+    // Saves the controls as a user preset and makes it the current one; false if it failed.
+    bool saveUserPreset (const juce::String& name);
+
+    // The dice: the four macros to new random positions (Mode and Mix stay), clean switch, the
+    // knobs glide on screen. Undo goes back through the last ten rolls.
+    void roll();
+    bool canUndoRoll() const { return rolls.canUndo(); }
+    void undoRoll();
+    int knobJumpCount() const { return jumps; }
+    const spaceforge::MacroKnobs& knobJumpFrom() const { return jumpFrom; }
 
     // The sorting mode's test sounds (standalone only): the input is replaced by one of them,
     // looped. startAudition builds them (message thread, allocates); restartAudition plays the
@@ -84,7 +103,6 @@ private:
     std::atomic<float>* motionValue = nullptr;
     std::atomic<float>* toneValue = nullptr;
     std::atomic<float>* mixValue = nullptr;
-    std::atomic<float>* freezeValue = nullptr;
     std::atomic<float>* modeValue = nullptr;
     spaceforge::dsp::SpaceEngine engine;
 
@@ -93,6 +111,23 @@ private:
     std::atomic<double> bpm { 120.0 };
     std::atomic<bool> jumpRequested { false };
     spaceforge::Preset currentPreset = spaceforge::presets::makeInit();
+    int currentIndex = 0;
+    PresetLibrary presetLibrary;
+    // Per-user preferences (favourites), not per project (from SpaceForge 1).
+    juce::PropertiesFile userSettings { [] {
+        juce::PropertiesFile::Options o;
+        o.applicationName = "SpaceForge2";
+        o.filenameSuffix = ".settings";
+        o.osxLibrarySubFolder = "Application Support";
+        o.folderName = "SpaceForge2";
+        return o;
+    }() };
+    spaceforge::VariationHistory rolls;
+    juce::Random random;
+    int jumps = 0;
+    spaceforge::MacroKnobs jumpFrom {};
+    spaceforge::MacroKnobs knobs() const;
+    void setKnobs (const spaceforge::MacroKnobs&);
 
     std::vector<spaceforge::analysis::TestSignal> auditionSounds; // built once, never changed after
     std::atomic<int> auditionSound { -1 };                        // -1: the real input

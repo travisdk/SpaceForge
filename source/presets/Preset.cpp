@@ -9,8 +9,7 @@ namespace spaceforge
 bool Preset::sameSound (const Preset& o) const
 {
     auto near = [] (float a, float b) { return std::abs (a - b) < 0.005f; };
-    return mode == o.mode && near (space, o.space) && near (echo, o.echo) && near (motion, o.motion) && near (tone, o.tone) && near (mix, o.mix)
-           && freeze == o.freeze;
+    return mode == o.mode && near (space, o.space) && near (echo, o.echo) && near (motion, o.motion) && near (tone, o.tone) && near (mix, o.mix);
 }
 
 namespace presets
@@ -69,8 +68,6 @@ std::optional<Preset> fromJson (const juce::String& text)
     p.motion = unit (root.getProperty ("motion", {}), p.motion);
     p.tone = unit (root.getProperty ("tone", {}), p.tone);
     p.mix = unit (root.getProperty ("mix", {}), p.mix);
-    const auto freeze = root.getProperty ("freeze", false);
-    p.freeze = freeze.isBool() && (bool) freeze;
     return p;
 }
 
@@ -95,7 +92,6 @@ juce::String toJson (const Preset& p)
     root->setProperty ("motion", tidy (p.motion));
     root->setProperty ("tone", tidy (p.tone));
     root->setProperty ("mix", tidy (p.mix));
-    root->setProperty ("freeze", p.freeze);
     return juce::JSON::toString (rootVar, false, 4) + "\n";
 }
 

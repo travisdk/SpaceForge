@@ -81,4 +81,4 @@ Notes:
 
 | From | What | License |
 |---|---|---|
-| `../SpaceForge` (SpaceForge 1, same author) | CMake setup, `cmake/GitVersion.cmake`, test helpers in `tests/TestUtils.h`, bus layout and state handling patterns; the look and the interface (`source/plugin/ui/Theme.h`, `MacroKnob`, `CloudView`, the editor layout, `tools/screenshot`), adapted to the six controls; the preset file reading and writing (`source/presets/Preset.*`, from `presets/Preset.*`), adapted to the six controls and the Modes | AGPLv3 |
+| `../SpaceForge` (SpaceForge 1, same author) | CMake setup, `cmake/GitVersion.cmake`, test helpers in `tests/TestUtils.h`, bus layout and state handling patterns; the look and the interface (`source/plugin/ui/Theme.h`, `MacroKnob`, `CloudView`, the editor layout, `tools/screenshot`), adapted to the six controls; the preset file reading and writing (`source/presets/Preset.*`, from `presets/Preset.*`), the preset browser, dice with undo and shape buttons (`source/plugin/ui/PresetBrowser.*`, `source/presets/Variation.*`, the editor layout), adapted to the Modes | AGPLv3 |

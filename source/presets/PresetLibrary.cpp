@@ -3,6 +3,7 @@
 
 #include "presets/PresetLibrary.h"
 #include "SpaceForgePresets.h"
+#include "dsp/Modes.h"
 
 using namespace spaceforge;
 
@@ -68,6 +69,66 @@ int PresetLibrary::indexOf (const juce::String& name) const
         if (presets[(size_t) i].name == name)
             return i;
     return -1;
+}
+
+int PresetLibrary::indexOfKey (const juce::String& key) const
+{
+    for (int i = 0; i < size(); ++i)
+        if (presets[(size_t) i].key() == key)
+            return i;
+    return -1;
+}
+
+juce::String PresetLibrary::categoryOf (const Preset& p)
+{
+    if (! p.isFactory)
+        return "User";
+    return p.name == "Init" ? juce::String ("Init") : juce::String (dsp::modeSetup (p.mode).name);
+}
+
+juce::StringArray PresetLibrary::categories() const
+{
+    juce::StringArray result;
+    for (int m = 0; m < dsp::kNumModes; ++m)
+        for (const auto& p : presets)
+            if (p.isFactory && p.mode == m && p.name != "Init")
+            {
+                result.add (dsp::modeSetup (m).name);
+                break;
+            }
+    if (std::any_of (presets.begin(), presets.end(), [] (const Preset& p) { return ! p.isFactory; }))
+        result.add ("User");
+    return result;
+}
+
+std::vector<int> PresetLibrary::filter (const juce::String& query, const juce::String& category, bool favouritesOnly) const
+{
+    const auto words = juce::StringArray::fromTokens (query.toLowerCase(), " ", "\"");
+    std::vector<int> result;
+    for (int i = 0; i < size(); ++i)
+    {
+        const auto& p = presets[(size_t) i];
+        if (category.isNotEmpty() && (categoryOf (p) != category || p.name == "Init"))
+            continue;
+        if (favouritesOnly && ! isFavourite (p.key()))
+            continue;
+        const auto haystack = (p.name + " " + categoryOf (p)).toLowerCase();
+        bool matches = true;
+        for (const auto& w : words)
+            if (w.isNotEmpty() && ! haystack.contains (w))
+                matches = false;
+        if (matches)
+            result.push_back (i);
+    }
+    return result;
+}
+
+void PresetLibrary::setFavourite (const juce::String& key, bool on)
+{
+    if (on)
+        favourites.addIfNotAlreadyThere (key);
+    else
+        favourites.removeString (key);
 }
 
 int PresetLibrary::saveUserPreset (const Preset& preset)

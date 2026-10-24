@@ -8,7 +8,8 @@
 // Every preset the plug-in offers (adapted from SpaceForge 1): Init, the factory presets compiled
 // into the plug-in (presets/factory, the candidates Henrik kept), and the user's own files in
 // Documents/SpaceForge2/Presets. In order: Init, factory by Mode then name, user by name.
-// Message thread only.
+// Categories are the Modes plus "User"; search and favourites as in SpaceForge 1. Message
+// thread only.
 class PresetLibrary
 {
 public:
@@ -22,6 +23,19 @@ public:
     const spaceforge::Preset* at (int index) const;
     // The first preset with this name (user presets may share a factory name), or -1.
     int indexOf (const juce::String& name) const;
+    int indexOfKey (const juce::String& key) const;
+
+    // The Modes that have presets, then "User" if there are user presets.
+    juce::StringArray categories() const;
+    // Indices of the presets matching a filter, in library order. Empty category = all. Every
+    // word of the query must match the name or the category somewhere.
+    std::vector<int> filter (const juce::String& query, const juce::String& category, bool favouritesOnly) const;
+    static juce::String categoryOf (const spaceforge::Preset&);
+
+    bool isFavourite (const juce::String& key) const { return favourites.contains (key); }
+    void setFavourite (const juce::String& key, bool on);
+    const juce::StringArray& getFavourites() const { return favourites; }
+    void setFavourites (const juce::StringArray& keys) { favourites = keys; }
 
     // Saves the controls as a user preset (replacing one with the same name); returns its index
     // after reloading, or -1 if the name is unusable or the file could not be written.
@@ -34,4 +48,5 @@ public:
 
 private:
     std::vector<spaceforge::Preset> presets;
+    juce::StringArray favourites;
 };

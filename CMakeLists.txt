@@ -131,7 +131,9 @@ target_sources(SpaceForge2 PRIVATE
     source/plugin/PluginEditor.cpp
     source/plugin/ui/CloudView.cpp
     source/plugin/ui/MacroKnob.cpp
+    source/plugin/ui/PresetBrowser.cpp
     source/presets/Preset.cpp
+    source/presets/Variation.cpp
     source/presets/PresetLibrary.cpp
     source/presets/CandidateSorter.cpp)
 

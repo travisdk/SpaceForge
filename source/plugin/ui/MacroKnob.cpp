@@ -22,6 +22,30 @@ MacroKnob::MacroKnob (juce::AudioProcessorValueTreeState& apvts, const juce::Str
     addAndMakeVisible (slider);
 }
 
+void MacroKnob::animate (float from, float to)
+{
+    animFrom = from;
+    animTo = to;
+    animStartMs = juce::Time::getMillisecondCounterHiRes();
+    slider.setValue (from, juce::dontSendNotification); // shown only; the parameter keeps `to`
+    startTimerHz (60);
+}
+
+void MacroKnob::timerCallback()
+{
+    const float t = (float) juce::jlimit (0.0, 1.0, (juce::Time::getMillisecondCounterHiRes() - animStartMs) / 250.0);
+    // a drag takes over at once
+    if (slider.isMouseButtonDown() || t >= 1.0f)
+    {
+        stopTimer();
+        if (! slider.isMouseButtonDown())
+            slider.setValue (animTo, juce::dontSendNotification);
+        return;
+    }
+    const float eased = t * t * (3.0f - 2.0f * t);
+    slider.setValue (animFrom + (animTo - animFrom) * eased, juce::dontSendNotification);
+}
+
 void MacroKnob::setValueText (const juce::String& text)
 {
     if (text != valueText || scalePosition >= 0.0f)
@@ -71,10 +95,16 @@ void MacroKnob::paint (juce::Graphics& g)
     }
 
     // a fixed row: low word, eight segments, high word; only the segments light up
+    // (the words as wide as they are, so narrow knobs keep a readable bar; the row centred)
     auto row = area.removeFromTop (18);
+    const auto wordWidth = [&g] (const juce::String& word) {
+        return juce::roundToInt (juce::GlyphArrangement::getStringWidth (g.getCurrentFont(), word)) + 2;
+    };
+    const int lowWidth = wordWidth (scaleLow), highWidth = wordWidth (scaleHigh);
+    row = row.withSizeKeepingCentre (juce::jmin (row.getWidth(), lowWidth + highWidth + 90), row.getHeight());
     g.setColour (textColour);
-    g.drawText (scaleLow, row.removeFromLeft (52), juce::Justification::centredRight);
-    g.drawText (scaleHigh, row.removeFromRight (52), juce::Justification::centredLeft);
+    g.drawText (scaleLow, row.removeFromLeft (lowWidth), juce::Justification::centredRight);
+    g.drawText (scaleHigh, row.removeFromRight (highWidth), juce::Justification::centredLeft);
     auto bar = row.reduced (5, 4).toFloat();
     constexpr int segments = 8;
     const float gap = 3.0f, w = (bar.getWidth() - gap * (segments - 1)) / segments;

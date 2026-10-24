@@ -19,8 +19,10 @@ SpaceForgeProcessor::SpaceForgeProcessor()
     motionValue = apvts.getRawParameterValue (plugin::kMotionId);
     toneValue = apvts.getRawParameterValue (plugin::kToneId);
     mixValue = apvts.getRawParameterValue (plugin::kMixId);
-    freezeValue = apvts.getRawParameterValue (plugin::kFreezeId);
     modeValue = apvts.getRawParameterValue (plugin::kModeId);
+    auto favourites = juce::StringArray::fromLines (userSettings.getValue ("favourites"));
+    favourites.removeEmptyStrings();
+    presetLibrary.setFavourites (favourites);
 }
 
 int SpaceForgeProcessor::currentMode() const
@@ -76,11 +78,6 @@ juce::AudioProcessorValueTreeState::ParameterLayout SpaceForgeProcessor::createP
     for (int m = 0; m < dsp::kNumModes; ++m)
         modeNames.add (dsp::modeSetup (m).name);
     params.push_back (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID { plugin::kModeId, 1 }, "Mode", modeNames, 0));
-    params.push_back (std::make_unique<juce::AudioParameterBool> (
-        juce::ParameterID { plugin::kFreezeId, 1 }, "Freeze", false,
-        juce::AudioParameterBoolAttributes()
-            .withStringFromValueFunction ([] (bool on, int) { return juce::String (on ? "On" : "Off"); })
-            .withValueFromStringFunction ([] (const juce::String& t) { return t.trim().equalsIgnoreCase ("on") || t.trim() == "1"; })));
     return { params.begin(), params.end() };
 }
 
@@ -99,7 +96,6 @@ void SpaceForgeProcessor::updateEngine()
     else
         engine.setMacros (macros);
     engine.setMix (mixValue->load());
-    engine.setFreeze (freezeValue->load() >= 0.5f);
 }
 
 bool SpaceForgeProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -233,13 +229,16 @@ void SpaceForgeProcessor::setStateInformation (const void* data, int sizeInBytes
     currentPreset.motion = motionValue->load();
     currentPreset.tone = toneValue->load();
     currentPreset.mix = mixValue->load();
-    currentPreset.freeze = freezeValue->load() >= 0.5f;
+    currentIndex = presetLibrary.indexOf (currentPreset.name);
+    rolls.clear();
+    sendChangeMessage();
     // Tells the host (CLAP: a parameter rescan) that every value may have changed.
     updateHostDisplay (ChangeDetails().withProgramChanged (true));
 }
 
 void SpaceForgeProcessor::applyPreset (const Preset& preset)
 {
+    jumpFrom = knobs();
     auto set = [this] (const char* id, float value) {
         if (auto* param = apvts.getParameter (id))
             param->setValueNotifyingHost (param->convertTo0to1 (value));
@@ -250,10 +249,92 @@ void SpaceForgeProcessor::applyPreset (const Preset& preset)
     set (plugin::kMotionId, preset.motion);
     set (plugin::kToneId, preset.tone);
     set (plugin::kMixId, preset.mix);
-    set (plugin::kFreezeId, preset.freeze ? 1.0f : 0.0f);
     currentPreset = preset;
+    currentIndex = presetLibrary.indexOfKey (preset.key());
+    rolls.clear();
     jumpRequested.store (true); // after the values, so the audio thread jumps to the new ones
     restartAudition();
+    ++jumps;
+    sendChangeMessage();
+}
+
+void SpaceForgeProcessor::loadPreset (int libraryIndex)
+{
+    if (const auto* p = presetLibrary.at (libraryIndex))
+        applyPreset (*p);
+}
+
+void SpaceForgeProcessor::step (int delta, const std::vector<int>& visible)
+{
+    if (visible.empty())
+        return;
+    const auto it = std::find (visible.begin(), visible.end(), currentIndex);
+    const int n = (int) visible.size();
+    const int pos = it == visible.end() ? (delta > 0 ? 0 : n - 1) : (((int) (it - visible.begin()) + delta) % n + n) % n;
+    loadPreset (visible[(size_t) pos]);
+}
+
+void SpaceForgeProcessor::setFavourite (const juce::String& key, bool on)
+{
+    presetLibrary.setFavourite (key, on);
+    userSettings.setValue ("favourites", presetLibrary.getFavourites().joinIntoString ("\n"));
+    userSettings.saveIfNeeded();
+    sendChangeMessage();
+}
+
+bool SpaceForgeProcessor::saveUserPreset (const juce::String& name)
+{
+    Preset p = currentPreset;
+    p.isFactory = false;
+    p.name = name;
+    p.mode = currentMode();
+    const auto k = knobs();
+    p.space = k[0];
+    p.echo = k[1];
+    p.motion = k[2];
+    p.tone = k[3];
+    p.mix = mixValue->load();
+    const int index = presetLibrary.saveUserPreset (p);
+    if (index < 0)
+        return false;
+    currentPreset = *presetLibrary.at (index); // the sound is already this: nothing to switch
+    currentIndex = index;
+    rolls.clear();
+    sendChangeMessage();
+    return true;
+}
+
+MacroKnobs SpaceForgeProcessor::knobs() const
+{
+    return { spaceValue->load(), echoValue->load(), motionValue->load(), toneValue->load() };
+}
+
+void SpaceForgeProcessor::setKnobs (const MacroKnobs& k)
+{
+    jumpFrom = knobs();
+    const char* ids[] = { plugin::kSpaceId, plugin::kEchoId, plugin::kMotionId, plugin::kToneId };
+    for (size_t m = 0; m < k.size(); ++m)
+        if (auto* param = apvts.getParameter (ids[m]))
+        {
+            param->beginChangeGesture();
+            param->setValueNotifyingHost (param->convertTo0to1 (k[m]));
+            param->endChangeGesture();
+        }
+    jumpRequested.store (true);
+    ++jumps;
+    sendChangeMessage();
+}
+
+void SpaceForgeProcessor::roll()
+{
+    rolls.push (knobs());
+    setKnobs (rollMacros (knobs(), random));
+}
+
+void SpaceForgeProcessor::undoRoll()
+{
+    if (rolls.canUndo())
+        setKnobs (rolls.pop());
 }
 
 bool SpaceForgeProcessor::presetUnchanged() const
@@ -265,7 +346,6 @@ bool SpaceForgeProcessor::presetUnchanged() const
     now.motion = motionValue->load();
     now.tone = toneValue->load();
     now.mix = mixValue->load();
-    now.freeze = freezeValue->load() >= 0.5f;
     return now.sameSound (currentPreset);
 }
 

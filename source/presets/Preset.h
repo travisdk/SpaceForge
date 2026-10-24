@@ -9,11 +9,13 @@
 #include "plugin/Defaults.h"
 
 // A preset as stored in a JSON file: its name and the visible controls (Mode, the four macros,
-// Mix, Freeze). Nothing else, so what you hear can always be read off the controls (CLAUDE.md,
+// Mix). Nothing else, so what you hear can always be read off the controls (CLAUDE.md,
 // "Intet skjult"). The format (adapted from SpaceForge 1):
 //
 //   { "name": "Init", "mode": "Sky", "space": 0.95, "echo": 0, "motion": 0.5, "tone": 0.5,
-//     "mix": 0.4, "freeze": false }
+//     "mix": 0.4 }
+// (Freeze is out for now, kept on the branch feature/freeze; a "freeze" entry in older files is
+// ignored.)
 namespace spaceforge
 {
 struct Preset
@@ -22,13 +24,14 @@ struct Preset
     int mode = 0;
     float space = dsp::MacroPositions::kInitSpace, echo = dsp::MacroPositions::kInitEcho;
     float motion = dsp::MacroPositions::kInitMotion, tone = dsp::MacroPositions::kInitTone, mix = plugin::kDefaultMix;
-    bool freeze = false;
 
     // Where it came from (not stored in the file).
     bool isFactory = false;
     juce::File file; // user presets and candidates
 
     bool sameSound (const Preset& other) const;
+    // For favourites: "factory:<name>" or "user:<name>".
+    juce::String key() const { return juce::String (isFactory ? "factory:" : "user:") + name; }
 };
 
 namespace presets

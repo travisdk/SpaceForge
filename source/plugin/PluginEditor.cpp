@@ -10,7 +10,7 @@ using namespace spaceforge;
 namespace
 {
 constexpr float kMinScale = 0.7f, kMaxScale = 2.0f;
-constexpr int kHeaderHeight = 40, kPresetHeight = 36, kFooterHeight = 120;
+constexpr int kBrowserWidth = 380, kHeaderHeight = 72, kModesHeight = 34, kMixSize = 110;
 
 struct MacroInfo
 {
@@ -34,16 +34,126 @@ float valueOf (const juce::AudioProcessorValueTreeState& apvts, const char* id)
 }
 } // namespace
 
+// --- ShapeButton (from SpaceForge 1) ----------------------------------------------------------
+
+SpaceForgeEditor::ShapeButton::ShapeButton (Shape s, const juce::String& tooltip) : juce::Button (tooltip), shape (s)
+{
+    setTooltip (tooltip);
+}
+
+void SpaceForgeEditor::ShapeButton::paintButton (juce::Graphics& g, bool highlighted, bool down)
+{
+    const auto bounds = getLocalBounds().toFloat();
+    const float side = juce::jmin (bounds.getWidth(), bounds.getHeight());
+    const auto area = juce::Rectangle<float> (side, side).withCentre (bounds.getCentre()).reduced (side * 0.2f);
+    auto colour = down ? theme::glow : highlighted ? theme::text : theme::dimText;
+    if (! isEnabled())
+        colour = theme::dimText.withAlpha (0.3f); // visible, but clearly not available
+
+    juce::Path p;
+    switch (shape)
+    {
+        case Shape::Left:
+        case Shape::Right:
+        {
+            const bool left = shape == Shape::Left;
+            const float x0 = left ? area.getRight() - area.getWidth() * 0.25f : area.getX() + area.getWidth() * 0.25f;
+            const float x1 = left ? area.getX() + area.getWidth() * 0.25f : area.getRight() - area.getWidth() * 0.25f;
+            p.startNewSubPath (x0, area.getY());
+            p.lineTo (x1, area.getCentreY());
+            p.lineTo (x0, area.getBottom());
+            g.setColour (colour);
+            g.strokePath (p, juce::PathStrokeType (2.2f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+            return;
+        }
+        case Shape::Heart:
+        {
+            const float s = area.getWidth() * 0.62f;
+            const auto c = area.getCentre().translated (0.0f, s * 0.1f);
+            p.startNewSubPath (c.x, c.y + s * 0.5f);
+            p.cubicTo (c.x - s * 0.95f, c.y - s * 0.1f, c.x - s * 0.5f, c.y - s * 0.85f, c.x, c.y - s * 0.3f);
+            p.cubicTo (c.x + s * 0.5f, c.y - s * 0.85f, c.x + s * 0.95f, c.y - s * 0.1f, c.x, c.y + s * 0.5f);
+            p.closeSubPath();
+            if (getToggleState())
+            {
+                g.setColour (theme::ice);
+                g.fillPath (p);
+            }
+            else
+            {
+                g.setColour (colour);
+                g.strokePath (p, juce::PathStrokeType (1.6f));
+            }
+            return;
+        }
+        case Shape::Back:
+        {
+            // a counter-clockwise arc ending in an arrowhead (from BleepForge's undo icon)
+            const auto centre = area.getCentre();
+            const float radius = area.getWidth() * 0.36f;
+            p.addCentredArc (centre.x, centre.y, radius, radius, 0.0f, -1.6f, 1.9f, true);
+            g.setColour (colour);
+            g.strokePath (p, juce::PathStrokeType (1.6f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+            const auto tip = centre.getPointOnCircumference (radius, -1.6f);
+            const float span = area.getWidth();
+            juce::Path head;
+            head.addTriangle (tip.translated (-span * 0.2f, 0.0f), tip.translated (span * 0.08f, -span * 0.18f), tip.translated (span * 0.08f, span * 0.18f));
+            g.fillPath (head);
+            return;
+        }
+        case Shape::Dice:
+        {
+            // the five face: rounded square with five pips
+            g.setColour (colour);
+            g.drawRoundedRectangle (area, area.getWidth() * 0.18f, 1.6f);
+            const float pip = area.getWidth() * 0.16f;
+            const auto inner = area.reduced (area.getWidth() * 0.27f);
+            for (auto centre : { inner.getTopLeft(), inner.getTopRight(), inner.getCentre(), inner.getBottomLeft(), inner.getBottomRight() })
+                g.fillEllipse (juce::Rectangle<float> (pip, pip).withCentre (centre));
+            return;
+        }
+    }
+}
+
+// --- editor ----------------------------------------------------------------------------------
+
 SpaceForgeEditor::SpaceForgeEditor (SpaceForgeProcessor& p)
     : AudioProcessorEditor (&p),
       processor (p),
+      browser (p.library()),
       cloud ([this] { return cloudState(); }),
-      mixAttachment (p.parameters(), plugin::kMixId, mix),
-      freezeAttachment (p.parameters(), plugin::kFreezeId, freeze)
+      mixAttachment (p.parameters(), plugin::kMixId, mix)
 {
     setLookAndFeel (&lookAndFeel);
     addAndMakeVisible (content);
     content.addAndMakeVisible (cloud);
+
+    // the browser and the preset header (from SpaceForge 1)
+    content.addAndMakeVisible (browser);
+    browser.onLoad = [this] (int index) { processor.loadPreset (index); };
+    browser.onFavourite = [this] (const juce::String& key, bool on) { processor.setFavourite (key, on); };
+    for (auto* b : { &previous, &next, &favourite, &dice, &undo })
+        content.addAndMakeVisible (b);
+    previous.onClick = [this] { processor.step (-1, browser.visiblePresets()); };
+    next.onClick = [this] { processor.step (1, browser.visiblePresets()); };
+    favourite.onClick = [this] {
+        const auto key = processor.preset().key();
+        processor.setFavourite (key, ! processor.library().isFavourite (key));
+    };
+    dice.onClick = [this] { processor.roll(); };
+    undo.onClick = [this] { processor.undoRoll(); };
+    save.setTooltip ("Save as your own preset");
+    save.onClick = [this] { showSaveDialog(); };
+    content.addAndMakeVisible (save);
+
+    presetName.setFont (theme::font (26.0f, true));
+    presetName.setColour (juce::Label::textColourId, theme::text);
+    presetName.setJustificationType (juce::Justification::centred);
+    presetInfo.setFont (theme::font (13.0f));
+    presetInfo.setColour (juce::Label::textColourId, theme::dimText);
+    presetInfo.setJustificationType (juce::Justification::centred);
+    content.addAndMakeVisible (presetName);
+    content.addAndMakeVisible (presetInfo);
 
     const juce::Colour accents[] = { theme::glow, theme::glow.withRotatedHue (-0.06f), theme::glow.withRotatedHue (0.06f),
                                      theme::ice.interpolatedWith (theme::glow, 0.5f) };
@@ -59,14 +169,7 @@ SpaceForgeEditor::SpaceForgeEditor (SpaceForgeProcessor& p)
     mix.setDoubleClickReturnValue (true, plugin::kDefaultMix);
     mix.setTooltip (utf8 ("Mix: tør -> våd"));
     content.addAndMakeVisible (mix);
-
-    freeze.setClickingTogglesState (true);
-    freeze.setColour (juce::TextButton::buttonOnColourId, theme::ice.withAlpha (0.22f));
-    freeze.setColour (juce::TextButton::textColourOnId, theme::ice);
-    freeze.setTooltip (utf8 ("Freeze: holder rummet, som det lyder lige nu; ny lyd går udenom"));
-    content.addAndMakeVisible (freeze);
-
-    for (auto* label : { &mixLabel, &mixValue, &freezeValue })
+    for (auto* label : { &mixLabel, &mixValue })
     {
         label->setJustificationType (juce::Justification::centred);
         content.addAndMakeVisible (*label);
@@ -75,7 +178,6 @@ SpaceForgeEditor::SpaceForgeEditor (SpaceForgeProcessor& p)
     mixLabel.setFont (theme::font (14.0f, true));
     mixLabel.setColour (juce::Label::textColourId, theme::text);
     mixValue.setFont (theme::font (13.0f));
-    freezeValue.setFont (theme::font (13.0f));
 
     // The Modes: one choice, always visible; the description on hovering. Clicking sets the
     // parameter (the DAW sees it); the buttons follow the parameter in timerCallback.
@@ -103,21 +205,6 @@ SpaceForgeEditor::SpaceForgeEditor (SpaceForgeProcessor& p)
     logo.setTooltip (juce::String ("SpaceForge 2 ") + SPACEFORGE_VERSION_STRING + " - fri software under GNU AGPLv3");
     content.addAndMakeVisible (logo);
 
-    // Presets
-    presetPrev.setTooltip ("Forrige preset");
-    presetNext.setTooltip (utf8 ("Næste preset"));
-    presetName.setTooltip ("Alle presets, efter Mode");
-    presetSave.setTooltip ("Gem knapperne som dit eget preset");
-    presetPrev.onClick = [this] { stepPreset (-1); };
-    presetNext.onClick = [this] { stepPreset (1); };
-    presetName.onClick = [this] { showPresetMenu(); };
-    presetSave.onClick = [this] { askToSave(); };
-    presetPrev.setConnectedEdges (juce::Button::ConnectedOnRight);
-    presetName.setConnectedEdges (juce::Button::ConnectedOnLeft | juce::Button::ConnectedOnRight);
-    presetNext.setConnectedEdges (juce::Button::ConnectedOnLeft);
-    for (auto* button : { &presetPrev, &presetName, &presetNext, &presetSave })
-        content.addAndMakeVisible (*button);
-
     for (auto* label : { &sortTitle, &sortHelp })
     {
         label->setJustificationType (juce::Justification::centred);
@@ -128,6 +215,12 @@ SpaceForgeEditor::SpaceForgeEditor (SpaceForgeProcessor& p)
     sortHelp.setFont (theme::font (13.0f));
     sortHelp.setColour (juce::Label::textColourId, theme::dimText);
 
+    if (juce::JUCEApplicationBase::isStandaloneApp())
+        setWantsKeyboardFocus (true); // the arrow keys step through presets
+
+    seenKnobJumps = processor.knobJumpCount();
+    processor.addChangeListener (this);
+    updateFromPreset();
     timerCallback();
     startTimerHz (15);
 
@@ -135,9 +228,132 @@ SpaceForgeEditor::SpaceForgeEditor (SpaceForgeProcessor& p)
     applySizeLimits();
     if (const auto folder = sortFolderFromCommandLine(); folder != juce::File())
         startSorting (folder);
-    else
-        resized();
 }
+
+SpaceForgeEditor::~SpaceForgeEditor()
+{
+    processor.removeChangeListener (this);
+    setLookAndFeel (nullptr);
+}
+
+void SpaceForgeEditor::changeListenerCallback (juce::ChangeBroadcaster*)
+{
+    // the knobs jumped (preset, roll, undo): the sound has switched already; glide them on screen
+    if (processor.knobJumpCount() != seenKnobJumps)
+    {
+        seenKnobJumps = processor.knobJumpCount();
+        for (int m = 0; m < kNumMacros; ++m)
+            macros[(size_t) m]->animate (processor.knobJumpFrom()[(size_t) m], valueOf (processor.parameters(), kMacros[m].id));
+    }
+    updateFromPreset();
+}
+
+void SpaceForgeEditor::updateFromPreset()
+{
+    const auto& preset = processor.preset();
+    juce::String info = PresetLibrary::categoryOf (preset);
+    if (info == "Init" || info == "User")
+        info << "  -  " << dsp::modeSetup (preset.mode).name;
+    presetInfo.setText (info, juce::dontSendNotification);
+    favourite.setToggleState (processor.library().isFavourite (preset.key()), juce::dontSendNotification);
+    undo.setEnabled (processor.canUndoRoll());
+    browser.refresh (processor.presetIndex());
+    timerCallback();
+}
+
+void SpaceForgeEditor::timerCallback()
+{
+    const auto& apvts = processor.parameters();
+    const float space = valueOf (apvts, plugin::kSpaceId), echo = valueOf (apvts, plugin::kEchoId);
+    const float motion = valueOf (apvts, plugin::kMotionId), tone = valueOf (apvts, plugin::kToneId);
+    const int mode = shownMode();
+    for (int m = 0; m < dsp::kNumModes; ++m)
+        modeButtons[(size_t) m]->setToggleState (m == mode, juce::dontSendNotification);
+    macros[0]->setValueText (utf8 (dsp::describeSpace (space, mode)));
+    macros[1]->setValueText (utf8 (dsp::describeEcho (echo)));
+
+    // Motion: the scale, and the auto-pan's cycle under it
+    const auto s = dsp::mapMacros ({ space, echo, motion, tone, mode });
+    juce::String pan = "ingen pan";
+    if (s.motionPanDepth > 0.0)
+        pan = s.motionPanBars == 0 ? utf8 ("pan ½ takt") : "pan " + juce::String (s.motionPanBars) + (s.motionPanBars == 1 ? " takt" : " takter");
+    macros[2]->setScale ("stille", "levende", motion, pan);
+    macros[3]->setScale (utf8 ("mørk"), "lys", tone);
+
+    const auto shownName = processor.presetName() + (processor.presetUnchanged() ? "" : " *");
+    if (presetName.getText() != shownName)
+        presetName.setText (shownName, juce::dontSendNotification);
+
+    mixValue.setText (juce::String (juce::roundToInt (valueOf (apvts, plugin::kMixId) * 100.0f)) + " %", juce::dontSendNotification);
+}
+
+int SpaceForgeEditor::shownMode() const
+{
+    const float v = valueOf (processor.parameters(), plugin::kModeId);
+    return std::isfinite (v) ? std::clamp ((int) std::lround (v), 0, dsp::kNumModes - 1) : 0;
+}
+
+CloudView::State SpaceForgeEditor::cloudState() const
+{
+    const auto& apvts = processor.parameters();
+    CloudView::State st;
+    st.space = valueOf (apvts, plugin::kSpaceId);
+    st.echo = valueOf (apvts, plugin::kEchoId);
+    st.motion = valueOf (apvts, plugin::kMotionId);
+    st.tone = valueOf (apvts, plugin::kToneId);
+    const auto s = dsp::mapMacros ({ st.space, st.echo, st.motion, st.tone, shownMode() });
+    st.feedback = (float) s.echoFeedback;
+    st.repeats = s.echoSend > 0.0 ? dsp::echoRepeats (s.echoFeedback) : 0;
+    st.echoSeconds = (float) (dsp::kEchoBeats * 60.0 / processor.getBpm());
+    st.onsets = processor.getOnsetCount();
+    st.pan = processor.getPanPosition();
+    st.level = processor.getOutputLevel();
+    return st;
+}
+
+void SpaceForgeEditor::showSaveDialog()
+{
+    const auto& preset = processor.preset();
+    saveDialog = std::make_unique<juce::AlertWindow> ("Save preset", "Saved in " + PresetLibrary::userFolder().getFullPathName(),
+                                                      juce::MessageBoxIconType::NoIcon, this);
+    saveDialog->setLookAndFeel (&lookAndFeel);
+    saveDialog->addTextEditor ("name", preset.isFactory ? preset.name + " (mine)" : preset.name, "Name");
+    saveDialog->addButton ("Save", 1, juce::KeyPress (juce::KeyPress::returnKey));
+    saveDialog->addButton ("Cancel", 0, juce::KeyPress (juce::KeyPress::escapeKey));
+    saveDialog->enterModalState (true, juce::ModalCallbackFunction::create ([safe = juce::Component::SafePointer (this)] (int result) {
+        if (safe == nullptr || safe->saveDialog == nullptr)
+            return;
+        const auto name = presets::sanitiseName (safe->saveDialog->getTextEditorContents ("name"));
+        safe->saveDialog.reset();
+        if (result == 1 && name.isNotEmpty() && ! safe->processor.saveUserPreset (name))
+            juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon, "Save preset",
+                                                    "The preset could not be saved in " + PresetLibrary::userFolder().getFullPathName());
+    }));
+}
+
+bool SpaceForgeEditor::keyPressed (const juce::KeyPress& key)
+{
+    if (sorter != nullptr)
+        return sortKey (key);
+    if (key == juce::KeyPress ('z', juce::ModifierKeys::commandModifier, 0))
+    {
+        processor.undoRoll();
+        return true;
+    }
+    if (key == juce::KeyPress::leftKey || key == juce::KeyPress::upKey)
+    {
+        processor.step (-1, browser.visiblePresets());
+        return true;
+    }
+    if (key == juce::KeyPress::rightKey || key == juce::KeyPress::downKey)
+    {
+        processor.step (1, browser.visiblePresets());
+        return true;
+    }
+    return false;
+}
+
+// --- the sorting mode --------------------------------------------------------------------------
 
 void SpaceForgeEditor::applySizeLimits()
 {
@@ -145,82 +361,6 @@ void SpaceForgeEditor::applySizeLimits()
                      juce::roundToInt (kWidth * kMaxScale), juce::roundToInt (designHeight() * kMaxScale));
     getConstrainer()->setFixedAspectRatio ((double) kWidth / (double) designHeight());
     setSize (kWidth, designHeight());
-}
-
-void SpaceForgeEditor::loadPreset (int index)
-{
-    if (const auto* preset = presetLibrary.at (index))
-    {
-        processor.applyPreset (*preset);
-        timerCallback();
-    }
-}
-
-void SpaceForgeEditor::stepPreset (int delta)
-{
-    const int n = presetLibrary.size();
-    if (n == 0)
-        return;
-    const int now = presetLibrary.indexOf (processor.presetName());
-    loadPreset (now < 0 ? 0 : ((now + delta) % n + n) % n);
-}
-
-void SpaceForgeEditor::showPresetMenu()
-{
-    juce::PopupMenu menu;
-    std::array<juce::PopupMenu, dsp::kNumModes> byMode;
-    juce::PopupMenu user;
-    const int current = presetLibrary.indexOf (processor.presetName());
-    for (int i = 0; i < presetLibrary.size(); ++i)
-    {
-        const auto& p = *presetLibrary.at (i);
-        if (p.name == "Init" && p.isFactory)
-            menu.addItem (i + 1, p.name, true, i == current);
-        else if (p.isFactory)
-            byMode[(size_t) p.mode].addItem (i + 1, p.name, true, i == current);
-        else
-            user.addItem (i + 1, p.name, true, i == current);
-    }
-    for (int m = 0; m < dsp::kNumModes; ++m)
-        if (byMode[(size_t) m].getNumItems() > 0)
-            menu.addSubMenu (dsp::modeSetup (m).name, byMode[(size_t) m]);
-    if (user.getNumItems() > 0)
-    {
-        menu.addSeparator();
-        menu.addSubMenu ("Mine", user);
-    }
-    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (presetName), [safe = juce::Component::SafePointer (this)] (int chosen) {
-        if (safe != nullptr && chosen > 0)
-            safe->loadPreset (chosen - 1);
-    });
-}
-
-void SpaceForgeEditor::askToSave()
-{
-    saveDialog = std::make_unique<juce::AlertWindow> ("Gem preset", "Navn:", juce::MessageBoxIconType::NoIcon, this);
-    saveDialog->addTextEditor ("name", processor.presetName() == "Init" ? juce::String() : processor.presetName());
-    saveDialog->addButton ("Gem", 1, juce::KeyPress (juce::KeyPress::returnKey));
-    saveDialog->addButton ("Fortryd", 0, juce::KeyPress (juce::KeyPress::escapeKey));
-    saveDialog->enterModalState (true, juce::ModalCallbackFunction::create ([safe = juce::Component::SafePointer (this)] (int result) {
-        if (safe == nullptr || safe->saveDialog == nullptr)
-            return;
-        const auto name = presets::sanitiseName (safe->saveDialog->getTextEditorContents ("name"));
-        safe->saveDialog.reset();
-        if (result != 1 || name.isEmpty())
-            return;
-        const auto& apvts = safe->processor.parameters();
-        Preset p;
-        p.name = name;
-        p.mode = safe->shownMode();
-        p.space = valueOf (apvts, plugin::kSpaceId);
-        p.echo = valueOf (apvts, plugin::kEchoId);
-        p.motion = valueOf (apvts, plugin::kMotionId);
-        p.tone = valueOf (apvts, plugin::kToneId);
-        p.mix = valueOf (apvts, plugin::kMixId);
-        p.freeze = valueOf (apvts, plugin::kFreezeId) >= 0.5f;
-        if (const int index = safe->presetLibrary.saveUserPreset (p); index >= 0)
-            safe->loadPreset (index);
-    }));
 }
 
 juce::File SpaceForgeEditor::sortFolderFromCommandLine()
@@ -276,21 +416,15 @@ void SpaceForgeEditor::showCandidate()
     }
 }
 
-bool SpaceForgeEditor::keyPressed (const juce::KeyPress& key)
+bool SpaceForgeEditor::sortKey (const juce::KeyPress& key)
 {
-    if (sorter == nullptr)
-        return false;
     const auto c = juce::CharacterFunctions::toUpperCase (key.getTextCharacter());
     if (c == 'K' || c == 'S')
         sorter->decide (c == 'K' ? CandidateSorter::Decision::keep : CandidateSorter::Decision::skip);
     else if (key.isKeyCode (juce::KeyPress::leftKey))
         sorter->undo();
     else if (c >= '1' && c < '1' + SpaceForgeProcessor::kNumAuditionSounds)
-    {
         processor.setAuditionSound ((int) (c - '1'));
-        showCandidate();
-        return true;
-    }
     else if (c == 'R')
     {
         processor.restartAudition();
@@ -302,64 +436,7 @@ bool SpaceForgeEditor::keyPressed (const juce::KeyPress& key)
     return true;
 }
 
-SpaceForgeEditor::~SpaceForgeEditor()
-{
-    setLookAndFeel (nullptr);
-}
-
-void SpaceForgeEditor::timerCallback()
-{
-    const auto& apvts = processor.parameters();
-    const float space = valueOf (apvts, plugin::kSpaceId), echo = valueOf (apvts, plugin::kEchoId);
-    const float motion = valueOf (apvts, plugin::kMotionId), tone = valueOf (apvts, plugin::kToneId);
-    const int mode = shownMode();
-    for (int m = 0; m < dsp::kNumModes; ++m)
-        modeButtons[(size_t) m]->setToggleState (m == mode, juce::dontSendNotification);
-    macros[0]->setValueText (utf8 (dsp::describeSpace (space, mode)));
-    macros[1]->setValueText (utf8 (dsp::describeEcho (echo)));
-
-    // Motion: the scale, and the auto-pan's cycle under it
-    const auto s = dsp::mapMacros ({ space, echo, motion, tone, mode });
-    juce::String pan = "ingen pan";
-    if (s.motionPanDepth > 0.0)
-        pan = s.motionPanBars == 0 ? utf8 ("pan ½ takt") : "pan " + juce::String (s.motionPanBars) + (s.motionPanBars == 1 ? " takt" : " takter");
-    macros[2]->setScale ("stille", "levende", motion, pan);
-    macros[3]->setScale (utf8 ("mørk"), "lys", tone);
-
-    const auto shownName = processor.presetName() + (processor.presetUnchanged() ? "" : " *");
-    if (presetName.getButtonText() != shownName)
-        presetName.setButtonText (shownName);
-
-    mixValue.setText (juce::String (juce::roundToInt (valueOf (apvts, plugin::kMixId) * 100.0f)) + " %", juce::dontSendNotification);
-    const bool frozen = valueOf (apvts, plugin::kFreezeId) >= 0.5f;
-    freezeValue.setText (frozen ? "holder rummet" : "fra", juce::dontSendNotification);
-    freezeValue.setColour (juce::Label::textColourId, frozen ? theme::ice : theme::dimText);
-}
-
-int SpaceForgeEditor::shownMode() const
-{
-    const float v = valueOf (processor.parameters(), plugin::kModeId);
-    return std::isfinite (v) ? std::clamp ((int) std::lround (v), 0, dsp::kNumModes - 1) : 0;
-}
-
-CloudView::State SpaceForgeEditor::cloudState() const
-{
-    const auto& apvts = processor.parameters();
-    CloudView::State st;
-    st.space = valueOf (apvts, plugin::kSpaceId);
-    st.echo = valueOf (apvts, plugin::kEchoId);
-    st.motion = valueOf (apvts, plugin::kMotionId);
-    st.tone = valueOf (apvts, plugin::kToneId);
-    const auto s = dsp::mapMacros ({ st.space, st.echo, st.motion, st.tone, shownMode() });
-    st.feedback = (float) s.echoFeedback;
-    st.repeats = s.echoSend > 0.0 ? dsp::echoRepeats (s.echoFeedback) : 0;
-    st.echoSeconds = (float) (dsp::kEchoBeats * 60.0 / processor.getBpm());
-    st.onsets = processor.getOnsetCount();
-    st.pan = processor.getPanPosition();
-    st.level = processor.getOutputLevel();
-    st.frozen = valueOf (apvts, plugin::kFreezeId) >= 0.5f;
-    return st;
-}
+// --- layout ----------------------------------------------------------------------------------
 
 void SpaceForgeEditor::paint (juce::Graphics& g)
 {
@@ -370,7 +447,7 @@ void SpaceForgeEditor::resized()
 {
     // lay out at the design size, then scale to the window
     content.setBounds (0, 0, kWidth, designHeight());
-    auto area = content.getLocalBounds().reduced (16);
+    auto area = content.getLocalBounds().reduced (14);
     if (sorter != nullptr)
     {
         auto strip = area.removeFromBottom (kSortHeight).withTrimmedTop (8);
@@ -378,42 +455,48 @@ void SpaceForgeEditor::resized()
         sortHelp.setBounds (strip.removeFromTop (22));
     }
 
+    // left: the logo and the browser
+    auto left = area.removeFromLeft (kBrowserWidth);
+    logo.setBounds (left.removeFromTop (34).withTrimmedLeft (2));
+    left.removeFromTop (4);
+    browser.setBounds (left);
+    area.removeFromLeft (14);
+
+    // header: < name > and the actions, the Modes under it
     auto header = area.removeFromTop (kHeaderHeight);
-    logo.setBounds (header.removeFromLeft (230).withTrimmedLeft (2));
-    auto modes = header.withSizeKeepingCentre (header.getWidth(), 26);
+    auto actions = header.removeFromRight (184).withSizeKeepingCentre (184, 34);
+    save.setBounds (actions.removeFromRight (70));
+    actions.removeFromRight (8);
+    undo.setBounds (actions.removeFromRight (34));
+    dice.setBounds (actions.removeFromRight (34));
+    actions.removeFromRight (4);
+    favourite.setBounds (actions.removeFromRight (34));
+    header.removeFromLeft (6);
+    previous.setBounds (header.removeFromLeft (34).withSizeKeepingCentre (34, 34));
+    next.setBounds (header.removeFromRight (34).withSizeKeepingCentre (34, 34));
+    presetName.setBounds (header.removeFromTop (44).withTrimmedTop (8));
+    presetInfo.setBounds (header);
+
+    auto modes = area.removeFromTop (kModesHeight).withSizeKeepingCentre (area.getWidth(), 26);
     const int modeWidth = modes.getWidth() / dsp::kNumModes;
     for (auto& button : modeButtons)
         button->setBounds (modes.removeFromLeft (modeWidth));
 
-    // the preset bar, centred under the Modes
-    auto bar = area.removeFromTop (kPresetHeight).withSizeKeepingCentre (400, 26);
-    presetSave.setBounds (bar.removeFromRight (64));
-    bar.removeFromRight (8);
-    presetPrev.setBounds (bar.removeFromLeft (32));
-    presetNext.setBounds (bar.removeFromRight (32));
-    presetName.setBounds (bar);
+    // Mix alone in the bottom-right corner
+    auto corner = area.removeFromBottom (kMixSize).removeFromRight (kMixSize + 10);
+    mix.setBounds (corner.removeFromTop (72).withSizeKeepingCentre (68, 68));
+    mixLabel.setBounds (corner.removeFromTop (20));
+    mixValue.setBounds (corner.removeFromTop (18));
 
-    // footer: Mix and Freeze side by side in the middle
-    auto footer = area.removeFromBottom (kFooterHeight).withSizeKeepingCentre (320, kFooterHeight);
-    auto mixArea = footer.removeFromLeft (140);
-    mix.setBounds (mixArea.removeFromTop (76).withSizeKeepingCentre (72, 72));
-    mixLabel.setBounds (mixArea.removeFromTop (20));
-    mixValue.setBounds (mixArea.removeFromTop (18));
-    auto freezeArea = footer.removeFromRight (140);
-    freezeArea.removeFromTop (20);
-    freeze.setBounds (freezeArea.removeFromTop (36).withSizeKeepingCentre (110, 36));
-    freezeArea.removeFromTop (20);
-    freezeValue.setBounds (freezeArea.removeFromTop (18));
-
-    // the cloud behind the four macros, centred on them, with room above and below for the
-    // echo rings; the macros in front of it, side by side
-    cloud.setBounds (area.expanded (0, 40));
-    const auto row = area.reduced (6, 10);
+    // the cloud behind the four macros, the macros in front of it, side by side
+    const auto knobsArea = area.withTrimmedBottom (-kMixSize / 2);
+    cloud.setBounds (knobsArea);
+    const auto row = knobsArea.reduced (2, 10);
     const int w = row.getWidth() / kNumMacros;
     auto m = row;
-    const int knob = juce::roundToInt ((float) w * 0.72f); // gaps between them, so the cloud shows
+    const int knob = juce::roundToInt ((float) w * 0.78f);
     for (int k = 0; k < kNumMacros; ++k)
-        macros[(size_t) k]->setBounds (m.removeFromLeft (w).withSizeKeepingCentre (w - 8, juce::jmin (row.getHeight(), knob + MacroKnob::kTextHeight)));
+        macros[(size_t) k]->setBounds (m.removeFromLeft (w).withSizeKeepingCentre (w - 6, juce::jmin (row.getHeight(), knob + MacroKnob::kTextHeight)));
 
     content.setTransform (juce::AffineTransform::scale ((float) getWidth() / (float) kWidth));
 }

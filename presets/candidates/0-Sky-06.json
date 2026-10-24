@@ -5,6 +5,5 @@
     "echo": 0.95,
     "motion": 0.43,
     "tone": 0.89,
-    "mix": 0.40,
-    "freeze": false
+    "mix": 0.40
 }

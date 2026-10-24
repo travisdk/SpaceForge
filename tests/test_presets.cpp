@@ -39,7 +39,6 @@ void testRoundTrip()
     p.motion = 0.9f;
     p.tone = 0.12f;
     p.mix = 0.55f;
-    p.freeze = true;
     const auto back = presets::fromJson (presets::toJson (p));
     CHECK (back.has_value());
     CHECK (back && back->sameSound (p) && back->name == p.name);
@@ -63,7 +62,6 @@ void testHostile()
             ++loaded;
             CHECK (inRange (*p));
             CHECK (! p->name.containsAnyOf ("/\\") && ! p->name.startsWith ("."));
-            CHECK (! p->freeze);
         }
     CHECK (loaded == 4); // the four with a usable name; everything else refused
     const auto weird = presets::fromJson ("{\"name\": \"x\", \"space\": \"NaN\", \"echo\": 1e999, \"motion\": -5}");

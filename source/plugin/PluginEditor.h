@@ -5,17 +5,18 @@
 
 #include "dsp/Modes.h"
 #include "plugin/PluginProcessor.h"
-#include "presets/CandidateSorter.h"
-#include "presets/PresetLibrary.h"
 #include "plugin/ui/CloudView.h"
 #include "plugin/ui/MacroKnob.h"
+#include "plugin/ui/PresetBrowser.h"
 #include "plugin/ui/Theme.h"
+#include "presets/CandidateSorter.h"
 
-// One window, one glance (layout and look from SpaceForge 1): the Modes beside the logo, the
-// cloud picture with the four macros in front of it, Mix and Freeze underneath. Under every
-// control what it does right now, in the same words the DAW shows. Laid out at kWidth x
-// kHeight and scaled to the window.
-class SpaceForgeEditor : public juce::AudioProcessorEditor, private juce::Timer
+// One window, one glance (layout and look from SpaceForge 1): the preset browser on the left;
+// on the right the preset's name with previous / next, favourite, the dice, undo and Save, the
+// Modes under it, the cloud picture with the four macros in front of it, and Mix alone in the
+// corner. Under every control what it does right now, in the same words the DAW shows. Laid out
+// at kWidth x kHeight and scaled to the window.
+class SpaceForgeEditor : public juce::AudioProcessorEditor, private juce::ChangeListener, private juce::Timer
 {
 public:
     explicit SpaceForgeEditor (SpaceForgeProcessor&);
@@ -23,40 +24,49 @@ public:
 
     void paint (juce::Graphics&) override;
     void resized() override;
+    bool keyPressed (const juce::KeyPress&) override;
 
-    static constexpr int kWidth = 760, kHeight = 576;
+    static constexpr int kWidth = 980, kHeight = 600;
     static constexpr int kNumMacros = 4;
+
+    // A button drawn from a path: arrows, the heart, the dice, undo (from SpaceForge 1).
+    struct ShapeButton : juce::Button
+    {
+        enum class Shape { Left, Right, Heart, Dice, Back };
+        ShapeButton (Shape, const juce::String& tooltip);
+        void paintButton (juce::Graphics&, bool highlighted, bool down) override;
+        Shape shape;
+    };
 
     // For screenshots and tests.
     void advanceAnimation (float seconds) { cloud.advance (seconds); }
     const MacroKnob& macro (int index) const { return *macros[(size_t) index]; }
     juce::String mixText() const { return mixValue.getText(); }
-    juce::String freezeText() const { return freezeValue.getText(); }
+    juce::String presetText() const { return presetName.getText(); }
     int shownMode() const;
     void clickMode (int mode) { modeButtons[(size_t) mode]->triggerClick(); }
-
-    // Presets: previous / next step through the library (Init, factory, user), the name opens
-    // the list (by Mode), Save stores the controls as a user preset. "*" after the name when a
-    // control has been turned since.
-    void stepPreset (int delta);
-    void loadPreset (int index);
-    juce::String presetText() const { return presetName.getButtonText(); }
-    const PresetLibrary& library() const { return presetLibrary; }
+    // (at once, not through the message loop as triggerClick does)
+    void clickDice() { dice.onClick(); processor.dispatchPendingMessages(); }
+    void clickUndo() { undo.onClick(); processor.dispatchPendingMessages(); }
+    PresetBrowser& presetBrowser() { return browser; }
 
     // The sorting mode (standalone started with --sort [folder]): candidates one at a time with a
     // test sound, K keeps, S skips, left arrow undoes, 1-5 choose the test sound.
     void startSorting (const juce::File& candidateFolder);
     const CandidateSorter* sorting() const { return sorter.get(); }
     juce::String sortText() const { return sortTitle.getText() + " | " + sortHelp.getText(); }
-    bool keyPressed (const juce::KeyPress&) override;
     // The folder after --sort on the standalone's command line (the source tree's candidates
     // when none is given); nothing in a plug-in or without --sort.
     static juce::File sortFolderFromCommandLine();
 
 private:
-    void timerCallback() override; // the values under the controls
+    void changeListenerCallback (juce::ChangeBroadcaster*) override;
+    void timerCallback() override; // the values under the controls, the * after the name
+    void updateFromPreset();
     CloudView::State cloudState() const;
+    void showSaveDialog();
     void showCandidate();
+    bool sortKey (const juce::KeyPress&);
     void applySizeLimits();
     int designHeight() const { return kHeight + (sorter != nullptr ? kSortHeight : 0); }
     static constexpr int kSortHeight = 64;
@@ -65,23 +75,25 @@ private:
     spaceforge::theme::LookAndFeel lookAndFeel;
 
     juce::Component content; // everything, laid out at kWidth x kHeight and scaled to the window
+    PresetBrowser browser;
     CloudView cloud;
     std::array<std::unique_ptr<MacroKnob>, kNumMacros> macros;
 
+    ShapeButton previous { ShapeButton::Shape::Left, "Previous preset" };
+    ShapeButton next { ShapeButton::Shape::Right, "Next preset" };
+    ShapeButton favourite { ShapeButton::Shape::Heart, "Favourite" };
+    ShapeButton dice { ShapeButton::Shape::Dice, "Dice: Space, Echo, Motion and Tone to new positions (Mode and Mix stay)" };
+    ShapeButton undo { ShapeButton::Shape::Back, "Undo the last roll (Ctrl+Z)" };
+    juce::TextButton save { "Save" };
+    juce::Label presetName, presetInfo;
+
     juce::Slider mix { juce::Slider::RotaryHorizontalVerticalDrag, juce::Slider::NoTextBox };
     juce::AudioProcessorValueTreeState::SliderAttachment mixAttachment;
-    juce::TextButton freeze { "FREEZE" };
-    juce::AudioProcessorValueTreeState::ButtonAttachment freezeAttachment;
-    juce::Label logo, mixLabel, mixValue, freezeValue;
+    juce::Label logo, mixLabel, mixValue;
     std::array<std::unique_ptr<juce::TextButton>, spaceforge::dsp::kNumModes> modeButtons;
 
-    void showPresetMenu();
-    void askToSave();
-
-    PresetLibrary presetLibrary;
-    juce::TextButton presetPrev { juce::String::fromUTF8 ("\xe2\x97\x80") }, presetNext { juce::String::fromUTF8 ("\xe2\x96\xb6") };
-    juce::TextButton presetName, presetSave { "GEM" };
     std::unique_ptr<juce::AlertWindow> saveDialog;
+    int seenKnobJumps = 0;
 
     std::unique_ptr<CandidateSorter> sorter;
     juce::Label sortTitle, sortHelp;

@@ -50,7 +50,7 @@ Kan Clouds' egen reverb gøre Cloud Seed overflødig i nogle presets, eller omve
 
 ## Kontroller
 
-Kun disse i v1: **Mode, Space, Echo, Motion, Tone, Mix, Freeze.** Nye knapper tilføjes kun, når Henrik beder om dem efter at have lyttet. (Mode blev tilføjet på Henriks ønske: med kun fire makroer lød alle presets som den samme lyd.)
+Kun disse i v1: **Mode, Space, Echo, Motion, Tone, Mix.** (Freeze er taget ud indtil videre på Henriks ønske, som i SpaceForge 1; den ligger på branchen `feature/freeze` til evt. senere genindførelse, og motoren har den stadig.) Nye knapper tilføjes kun, når Henrik beder om dem efter at have lyttet. (Mode blev tilføjet på Henriks ønske: med kun fire makroer lød alle presets som den samme lyd.)
 
 **Mode** er én synlig vælger med 6 karakterer (`source/dsp/Modes.cpp`): hver er en fast intern opsætning af Cloud Seed (fra Cloud Seeds factory-presets) og Clouds (dens fire tilstande). Henriks regler:
 - Inden for én Mode er skalaen fast og ens for alle presets. Kun Mode må ændre en knaps spænd, aldrig et preset
@@ -84,8 +84,9 @@ Regler:
 - Factory-presets er **Init** plus de kandidater Henrik har beholdt (K) i sorteringstilstanden (standalone startet med `--sort`). CC foreslår navne ud fra lyden; Henrik retter dem
 - Ingen preset-navne fra SuperMassive, SOL eller Cloud Seed (og ingen stjerne-, galakse- eller stjernebilled-navne)
 - JSON, én fil pr. preset, brugerpresets i brugerens dokumentmappe
+- Visning som i SpaceForge 1: browser til venstre (søgning, favoritter, kategorierne er Modes), navnet med forrige/næste, favorit, terning, fortryd og Save
 - Preset-skift er **rent**: lyden skifter straks med en kort crossfade (30 til 50 ms), ingen spillover. Knap-animationen er kun visuel og må aldrig få lyden til at glide. Delaytider crossfades i stedet for at glide (ingen pitch-sweep)
-- Terningen flytter de fire makroer synligt (ca. 250 ms animation), mindst to af dem mærkbart. Mode, Mix og Freeze røres aldrig. Fortryd for de sidste 10 kast. Ændret preset markeres med *
+- Terningen flytter de fire makroer synligt (ca. 250 ms animation), mindst to af dem mærkbart. Mode og Mix røres aldrig. Fortryd for de sidste 10 kast. Ændret preset markeres med *
 - **Alt der ændrer lyden, skal kunne ses i UI'et**
 
 ## Lydmål og måling
