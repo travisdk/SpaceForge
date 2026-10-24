@@ -40,7 +40,7 @@ class Reverb {
   Reverb() { }
   ~Reverb() { }
   
-  void Init(uint16_t* buffer) {
+  void Init(float* buffer) {
     engine_.Init(buffer);
     engine_.SetLFOFrequency(LFO_1, 0.5f / 32000.0f);
     engine_.SetLFOFrequency(LFO_2, 0.3f / 32000.0f);
@@ -160,7 +160,8 @@ class Reverb {
   }
   
  private:
-  typedef FxEngine<16384, FORMAT_12_BIT> E;
+  // SpaceForge 2: floats instead of 12-bit samples (no rounding anywhere in Clouds).
+  typedef FxEngine<16384, FORMAT_32_BIT> E;
   E engine_;
   
   float amount_;

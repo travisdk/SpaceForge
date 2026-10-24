@@ -56,6 +56,8 @@ public:
 
     // How late the wet signal is, in samples (the fixed chunk).
     int wetLatency() const { return chunk; }
+    // Where the auto-pan has the room right now, -1 (left) .. 1 (right), for the picture.
+    float panPosition() const { return 0.5f * (panR * panR - panL * panL); }
     // See TextureEngine::underruns(); always 0.
     int textureUnderruns() const { return texture.underruns(); }
 

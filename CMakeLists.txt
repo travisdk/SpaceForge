@@ -122,7 +122,10 @@ juce_add_plugin(SpaceForge2
     EDITOR_WANTS_KEYBOARD_FOCUS FALSE)
 
 target_sources(SpaceForge2 PRIVATE
-    source/plugin/PluginProcessor.cpp)
+    source/plugin/PluginProcessor.cpp
+    source/plugin/PluginEditor.cpp
+    source/plugin/ui/CloudView.cpp
+    source/plugin/ui/MacroKnob.cpp)
 
 # SPACEFORGE_VERSION_STRING in SpaceForgeVersion.h: "git describe --tags --dirty", refreshed at
 # every build; the project VERSION when git or tags are missing. (From SpaceForge 1.)
@@ -165,6 +168,13 @@ if (SPACEFORGE_INSTALL_AFTER_BUILD)
         COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:SpaceForge2_CLAP> ${CLAP_INSTALL_DIR}/
         COMMENT "Installing SpaceForge2.clap into ${CLAP_INSTALL_DIR}")
 endif()
+
+# sf2_screenshot: the interface of a fresh instance as a PNG (from SpaceForge 1), for checking
+# the layout before anyone looks at it.
+add_executable(sf2_screenshot EXCLUDE_FROM_ALL tools/screenshot/ScreenshotMain.cpp)
+target_include_directories(sf2_screenshot PRIVATE source $<TARGET_PROPERTY:SpaceForge2,INCLUDE_DIRECTORIES>)
+target_compile_definitions(sf2_screenshot PRIVATE $<TARGET_PROPERTY:SpaceForge2,COMPILE_DEFINITIONS>)
+target_link_libraries(sf2_screenshot PRIVATE SpaceForge2 spaceforge_analysis)
 
 # ---------------------------------------------------------------------------------------------
 option(SPACEFORGE_BUILD_TESTS "Build the unit tests (run with ctest)" ON)

@@ -24,11 +24,25 @@ Notes:
 - The parts of stmlib with other licenses (`ui/event_queue.h` GPLv3, `utils/crc32.h`,
   `utils/murmurhash3.h`, `third_party/STM`, `programming/serial`) are hardware/UI code that the
   Clouds DSP does not use, and are not copied.
-- **Changes to the engines**, each only what real-time use in a plug-in needs, marked
-  "SpaceForge 2:" in the code. The sound is unchanged.
+- **Changes to the engines**, each only what real-time use in a plug-in or full audio quality
+  needs, marked "SpaceForge 2:" in the code. The algorithms are unchanged.
   - Cloud Seed, `DSP/ReverbChannel.h`: caches the per-line random values and regenerates them
     only when a seed changes. The original regenerated them (allocating a `std::vector`) on
     every decay, size or modulation change, which must not happen on the audio thread.
+  - Cloud Seed, `DSP/ReverbChannel.h`, `DSP/Hp1.h`, `DSP/Lp1.h`: the input was zeroed sample by
+    sample below -90 dBFS (against CPU spikes from tiny numbers), a dead zone around zero that
+    distorted every quiet signal into hiss; and the input filters cut off any negative state at
+    once. Now only values below -400 dB become zero (the plug-in flushes denormals anyway).
+  - Clouds, full quality on floats (the module's codec and memory forced 16 bits): the sample
+    buffer (`clouds/dsp/audio_buffer.h`, new `RESOLUTION_32_BIT_FLOAT`, the crossfade tail as
+    floats), input and output (`GranularProcessor::Process` takes and gives `FloatFrame`, with
+    the module's soft limiter kept), the reverb and the pitch shifter (`fx/reverb.h`,
+    `fx/pitch_shifter.h`: `FORMAT_32_BIT` instead of 12 and 16 bits; the pitch shifter in its
+    own memory). The 16-bit buffer truncated every sample towards zero. The low-fidelity mode
+    (8-bit mu-law, half rate) is still in the code and never used.
+  Together these were the white noise Henrik heard when playing softly: the sky's feedback loop
+  kept the rounding alive (measured: 6-28 dB of hiss in the treble, tails lost below -90 dBFS;
+  after: the same tail at any level, the engine's own noise at -140 dBFS).
   - Clouds, `clouds/dsp/grain.h`: the grain window lookup is clamped just below the end of
     `lut_window`. At a grain's peak it read one entry past the table (found by
     AddressSanitizer).
@@ -56,4 +70,4 @@ Notes:
 
 | From | What | License |
 |---|---|---|
-| `../SpaceForge` (SpaceForge 1, same author) | CMake setup, `cmake/GitVersion.cmake`, test helpers in `tests/TestUtils.h`, bus layout and state handling patterns | AGPLv3 |
+| `../SpaceForge` (SpaceForge 1, same author) | CMake setup, `cmake/GitVersion.cmake`, test helpers in `tests/TestUtils.h`, bus layout and state handling patterns; the look and the interface (`source/plugin/ui/Theme.h`, `MacroKnob`, `CloudView`, the editor layout, `tools/screenshot`), adapted to the six controls | AGPLv3 |

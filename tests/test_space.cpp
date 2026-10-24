@@ -12,12 +12,14 @@
 #endif
 
 #include <atomic>
+#include <cmath>
 #include <cstdlib>
 #include <memory>
 #include <new>
 #include "TestUtils.h"
 #include "analysis/Character.h"
 #include "analysis/Render.h"
+#include "analysis/TestSignals.h"
 #include "plugin/Defaults.h"
 
 using namespace spaceforge;
@@ -149,6 +151,41 @@ void testFreezeReleases()
     CHECK (later < held - 10.0);
 }
 
+void testNoHissWhenSoft()
+{
+    // The engine adds no noise of its own: the same sounds 30 dB softer give the same tail,
+    // 30 dB softer, so what is left after lifting it back is far below the tail. Henrik heard
+    // white noise playing softly: Clouds rounded to 16 bits and Cloud Seed zeroed every sample
+    // below -90 dBFS; that left 6-28 dB of hiss in the treble (fixed at the source, THIRD_PARTY.md).
+    // With Tone at its brightest, where hiss would show most.
+    const double rate = 48000.0;
+    analysis::Stereo outs[2];
+    int k = 0;
+    for (const float levelDb : { -42.0f, -72.0f })
+    {
+        auto figure = analysis::makeSynthFigure (rate, 8.0).audio;
+        const float gain = std::pow (10.0f, (levelDb + 12.0f) / 20.0f);
+        for (auto* channel : { &figure.l, &figure.r })
+            for (auto& x : *channel)
+                x *= gain;
+        auto engine = makeEngine (rate);
+        engine->setMacros ({ dsp::MacroPositions::kInitSpace, 0.1f, 0.2f, 1.0f });
+        engine->reset();
+        outs[k++] = analysis::render (*engine, figure, rate);
+    }
+    const float lift = std::pow (10.0f, 30.0f / 20.0f);
+    analysis::Stereo rest { outs[0].l, outs[0].r };
+    for (size_t i = 0; i < rest.l.size(); ++i)
+    {
+        rest.l[i] -= outs[1].l[i] * lift;
+        rest.r[i] -= outs[1].r[i] * lift;
+    }
+    const auto from = (size_t) (4.0 * rate), to = rest.l.size();
+    const double tail = analysis::rmsDb (outs[0], from, to), noise = analysis::rmsDb (rest, from, to);
+    std::printf ("Soft input (-42 dB), Tone at max: tail %.1f dBFS, the engine's own noise %.1f dBFS\n", tail, noise);
+    CHECK (noise < tail - 60.0);
+}
+
 void testHostileInput()
 {
     const double rate = 48000.0;
@@ -194,6 +231,7 @@ int main()
     testNoAllocations();
     testMix();
     testBlockSizes();
+    testNoHissWhenSoft();
     testHostileInput();
     testFreezeReleases();
     testSampleRates();

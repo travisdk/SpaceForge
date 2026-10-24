@@ -19,7 +19,7 @@ constexpr std::array<double, 11> kMotionGainDb { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 // How much of the room's grains go back into it (the sky), per Space position: found by
 // measurement so the tail grows evenly, about twice as long per step up to Henrik's choice (C)
 // at Init; above it the sky holds itself (the limit keeps it from growing).
-constexpr std::array<double, 11> kSpaceSkyFeedDb { -40.0, -19.4, -8.5, -4.6, -3.7, -4.6, -6.0, -5.5, -5.0, -4.5, -4.0 };
+constexpr std::array<double, 11> kSpaceSkyFeedDb { -40.0, -19.7, -8.7, -4.9, -3.9, -4.9, -6.2, -5.7, -5.2, -4.7, -4.2 };
 constexpr std::array<double, 11> kToneGainDb { 1.71, 1.44, 1.17, 0.83, 0.44, -0.03, -0.32, -0.65, -1.04, -1.48, -1.99 };
 
 double clamp01 (double x) { return std::isfinite (x) ? std::clamp (x, 0.0, 1.0) : 0.0; }
@@ -54,7 +54,7 @@ std::string dots (double x, const char* left, const char* right)
 }
 } // namespace
 
-const std::array<double, 11> kSpaceMeasuredT60 { 1.8, 3.5, 6.9, 13.5, 26.6, 52.8, 103.5, 120.8, 130.3, 134.2, 132.8 };
+const std::array<double, 11> kSpaceMeasuredT60 { 1.77, 3.50, 6.87, 13.40, 26.78, 50.99, 110.97, 117.11, 129.50, 133.82, 132.74 };
 
 int echoRepeats (double feedback)
 {

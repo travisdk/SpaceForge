@@ -41,7 +41,7 @@ class PitchShifter {
   PitchShifter() { }
   ~PitchShifter() { }
   
-  void Init(uint16_t* buffer) {
+  void Init(float* buffer) {
     engine_.Init(buffer);
     phase_ = 0;
     size_ = 2047.0f;
@@ -102,7 +102,8 @@ class PitchShifter {
   }
   
  private:
-  typedef FxEngine<4096, FORMAT_16_BIT> E;
+  // SpaceForge 2: floats instead of 16-bit samples (no rounding anywhere in Clouds).
+  typedef FxEngine<4096, FORMAT_32_BIT> E;
   E engine_;
   float phase_;
   float ratio_;

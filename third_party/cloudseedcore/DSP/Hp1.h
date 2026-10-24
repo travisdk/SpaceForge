@@ -90,7 +90,9 @@ namespace Cloudseed
 
 		float Process(float input)
 		{
-			if (input == 0 && lpOut < 0.000001f)
+			// SpaceForge 2: was lpOut < 0.000001f, which also cut off any negative state at once
+			// (a small step in quiet signals); now only a state that is effectively zero.
+			if (input == 0 && std::fabs(lpOut) < 1e-20f)
 			{
 				Output = 0;
 			}

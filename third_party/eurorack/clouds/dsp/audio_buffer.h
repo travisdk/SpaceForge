@@ -44,6 +44,10 @@ const int32_t kInterpolationTail = 8;
 namespace clouds {
 
 enum Resolution {
+  // SpaceForge 2: samples kept as floats, nothing rounded. The 16-bit buffer truncated every
+  // sample towards zero: a fixed hiss that SpaceForge's feedback loop kept alive, and quiet
+  // sounds lost (measured). A plug-in has the memory for floats.
+  RESOLUTION_32_BIT_FLOAT,
   RESOLUTION_16_BIT,
   RESOLUTION_8_BIT,
   RESOLUTION_8_BIT_DITHERED,
@@ -65,14 +69,17 @@ class AudioBuffer {
   void Init(
       void* buffer,
       int32_t size,
-      int16_t* tail_buffer) {
+      float* tail_buffer) {
+    f32_ = static_cast<float*>(buffer);
     s16_ = static_cast<int16_t*>(buffer);
     s8_ = static_cast<int8_t*>(buffer);
     size_ = size - kInterpolationTail;
     write_head_ = 0;
     quantization_error_ = 0.0f;
     crossfade_counter_ = 0;
-    if (resolution == RESOLUTION_16_BIT) {
+    if (resolution == RESOLUTION_32_BIT_FLOAT) {
+      std::fill(&f32_[0], &f32_[size], 0.0f);
+    } else if (resolution == RESOLUTION_16_BIT) {
       std::fill(&s16_[0], &s16_[size], 0);
     } else {
       std::fill(
@@ -89,7 +96,9 @@ class AudioBuffer {
   }
   
   inline void Write(float in) {
-    if (resolution == RESOLUTION_16_BIT) {
+    if (resolution == RESOLUTION_32_BIT_FLOAT) {
+      f32_[write_head_] = in;
+    } else if (resolution == RESOLUTION_16_BIT) {
       s16_[write_head_] = stmlib::Clip16(
             static_cast<int32_t>(in * 32768.0f));
     } else if (resolution == RESOLUTION_8_BIT_DITHERED) {
@@ -108,7 +117,11 @@ class AudioBuffer {
           stmlib::Clip16(in * 32768.0f) >> 8);
     }
     
-    if (resolution == RESOLUTION_16_BIT) {
+    if (resolution == RESOLUTION_32_BIT_FLOAT) {
+      if (write_head_ < kInterpolationTail) {
+        f32_[write_head_ + size_] = f32_[write_head_];
+      }
+    } else if (resolution == RESOLUTION_16_BIT) {
       if (write_head_ < kInterpolationTail) {
         s16_[write_head_ + size_] = s16_[write_head_];
       }
@@ -134,11 +147,19 @@ class AudioBuffer {
       if (crossfade_counter_ < kCrossFadeSize) {
         while (size--) {
           if (crossfade_counter_ < kCrossFadeSize) {
-            tail_[crossfade_counter_++] = stmlib::Clip16(
-                static_cast<int32_t>(*in * 32767.0f));
+            // SpaceForge 2: the crossfade tail is kept as floats too.
+            tail_[crossfade_counter_++] = *in;
             in += stride;
           }
         }
+      }
+    } else if (write && !crossfade_counter_ &&
+        resolution == RESOLUTION_32_BIT_FLOAT &&
+        write_head_ >= kInterpolationTail && write_head_ < (size_ - size)) {
+      while (size--) {
+        f32_[write_head_] = *in;
+        ++write_head_;
+        in += stride;
       }
     } else if (write && !crossfade_counter_ && 
         resolution == RESOLUTION_16_BIT &&
@@ -157,7 +178,7 @@ class AudioBuffer {
           --crossfade_counter_;
           float tail_sample = tail_[kCrossFadeSize - crossfade_counter_];
           float gain = crossfade_counter_ * (1.0f / float(kCrossFadeSize));
-          sample += (tail_sample / 32768.0f - sample) * gain;
+          sample += (tail_sample - sample) * gain;
         }
         Write(sample);
         in += stride;
@@ -166,7 +187,14 @@ class AudioBuffer {
   }
   
   inline void Write(const float* in, int32_t size, int32_t stride) {
-    if (resolution == RESOLUTION_16_BIT
+    if (resolution == RESOLUTION_32_BIT_FLOAT
+        && write_head_ >= kInterpolationTail && write_head_ < (size_ - size)) {
+      while (size--) {
+        f32_[write_head_] = *in;
+        ++write_head_;
+        in += stride;
+      }
+    } else if (resolution == RESOLUTION_16_BIT
         && write_head_ >= kInterpolationTail && write_head_ < (size_ - size)) {
       // Fast write routine for the most common case.
       while (size--) {
@@ -200,7 +228,10 @@ class AudioBuffer {
     }
     
     float x0, scale;
-    if (resolution == RESOLUTION_16_BIT) {
+    if (resolution == RESOLUTION_32_BIT_FLOAT) {
+      x0 = f32_[integral];
+      scale = 1.0f;
+    } else if (resolution == RESOLUTION_16_BIT) {
       x0 = s16_[integral];
       scale = 1.0f / 32768.0f;
     } else if (resolution == RESOLUTION_8_BIT_MU_LAW) {
@@ -222,7 +253,11 @@ class AudioBuffer {
     
     float x0, x1, scale;
     float t = static_cast<float>(fractional) / 65536.0f;
-    if (resolution == RESOLUTION_16_BIT) {
+    if (resolution == RESOLUTION_32_BIT_FLOAT) {
+      x0 = f32_[integral];
+      x1 = f32_[integral + 1];
+      scale = 1.0f;
+    } else if (resolution == RESOLUTION_16_BIT) {
       x0 = s16_[integral];
       x1 = s16_[integral + 1];
       scale = 1.0f / 32768.0f;
@@ -248,7 +283,13 @@ class AudioBuffer {
     float xm1, x0, x1, x2, scale;
     float t = static_cast<float>(fractional) / 65536.0f;
     
-    if (resolution == RESOLUTION_16_BIT) {
+    if (resolution == RESOLUTION_32_BIT_FLOAT) {
+      xm1 = f32_[integral];
+      x0 = f32_[integral + 1];
+      x1 = f32_[integral + 2];
+      x2 = f32_[integral + 3];
+      scale = 1.0f;
+    } else if (resolution == RESOLUTION_16_BIT) {
       xm1 = s16_[integral];
       x0 = s16_[integral + 1];
       x1 = s16_[integral + 2];
@@ -281,6 +322,7 @@ class AudioBuffer {
   inline int32_t head() const { return write_head_; }
   
  private:
+  float* f32_;
   int16_t* s16_;
   int8_t* s8_;
   
@@ -291,7 +333,7 @@ class AudioBuffer {
   int32_t size_;
   int32_t write_head_;
   
-  int16_t* tail_;
+  float* tail_;
   int32_t crossfade_counter_;
   
   DISALLOW_COPY_AND_ASSIGN(AudioBuffer);

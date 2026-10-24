@@ -110,9 +110,10 @@ void testClouds()
     constexpr size_t block = 32;
     std::printf ("Clouds, granular mode at its native 32 kHz, 400 Hz sine at -6 dBFS in:\n");
 
-    // Buffer sizes from the author's own desktop test (clouds/test/clouds_test.cc).
-    static uint8_t largeBuffer[118784];
-    static uint8_t smallBuffer[65536 - 128];
+    // Buffer sizes as in TextureEngine: the author's desktop test (clouds/test/clouds_test.cc),
+    // doubled for float samples, plus the float effect workspace.
+    alignas (float) static uint8_t smallBuffer[2 * (65536 - 128)];
+    alignas (float) static uint8_t largeBuffer[sizeof (smallBuffer) + 98304];
 
     // Static storage, as on the module: GranularProcessor's constructor leaves members (silence_
     // among them) uninitialised and relies on the zero-filled memory of a global. On the heap it
@@ -148,19 +149,19 @@ void testClouds()
     processor->Prepare();
     for (size_t pos = 0; pos < length; pos += block)
     {
-        clouds::ShortFrame input[block], output[block];
+        clouds::FloatFrame input[block], output[block];
         for (auto& frame : input)
         {
             phase += 400.0f / (float) rate;
             phase -= std::floor (phase);
-            frame.l = frame.r = (short) (16384.0f * std::sin (phase * 6.2831853f));
+            frame.l = frame.r = 0.5f * std::sin (phase * 6.2831853f);
         }
         processor->Process (input, output, block);
         processor->Prepare();
         for (const auto& frame : output)
         {
-            outL.push_back ((float) frame.l / 32768.0f);
-            outR.push_back ((float) frame.r / 32768.0f);
+            outL.push_back (frame.l);
+            outR.push_back (frame.r);
         }
     }
 

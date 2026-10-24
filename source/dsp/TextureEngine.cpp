@@ -15,13 +15,17 @@ namespace spaceforge::dsp
 {
 namespace
 {
-// Buffer sizes from the author's own desktop test (clouds/test/clouds_test.cc): about one second
-// of stereo sound at 32 kHz, plus Clouds' effect workspace.
-constexpr size_t kLargeBufferBytes = 118784;
-constexpr size_t kSmallBufferBytes = 65536 - 128;
+// Buffer sizes: as in the author's own desktop test (clouds/test/clouds_test.cc), about one
+// second of stereo sound at 32 kHz, but twice the bytes, since Clouds here keeps its samples as
+// floats (THIRD_PARTY.md). The small buffer holds one channel's samples; the large one the
+// other channel's plus Clouds' effect workspace (diffuser, reverb, correlator, pitch shifter,
+// all floats: about 90 kB).
+constexpr size_t kSmallBufferBytes = 2 * (65536 - 128);
+constexpr size_t kLargeBufferBytes = kSmallBufferBytes + 98304;
 
-// Clouds works in 16-bit integers. The signal goes in 6 dB lower (and comes out 6 dB higher),
-// so a host signal up to +6 dBFS still fits.
+// Clouds' levels are those of the module's codec (full scale 1.0) and its soft limiters sit
+// there. The signal goes in 6 dB lower (and comes out 6 dB higher), so a host signal up to
+// +6 dBFS meets them where the module's input did. Nothing is rounded: Clouds runs on floats.
 constexpr float kHeadroom = 0.5f;
 
 // Clouds reads one entry past a lookup table when dry/wet or size is exactly 1.0
@@ -32,7 +36,6 @@ constexpr float kWetOnly = kAlmostOne;
 
 float setting (double v) { return std::isfinite (v) ? std::clamp ((float) v, 0.0f, kAlmostOne) : 0.0f; }
 
-short toShort (float x) { return (short) std::lround (std::clamp (x * kHeadroom * 32767.0f, -32768.0f, 32767.0f)); }
 
 // Clouds' constructor leaves members uninitialised and relies on the zero-filled memory of a
 // global (as on the module). So it lives in memory that is zeroed before it is constructed.
@@ -135,11 +138,11 @@ void TextureEngine::applyVoicing()
 
 void TextureEngine::runCloudsBlock()
 {
-    clouds::ShortFrame input[kBlock], output[kBlock];
+    clouds::FloatFrame input[kBlock], output[kBlock];
     for (int i = 0; i < kBlock; ++i)
     {
-        input[i].l = toShort (blockL[(size_t) i]);
-        input[i].r = toShort (blockR[(size_t) i]);
+        input[i].l = blockL[(size_t) i] * kHeadroom;
+        input[i].r = blockR[(size_t) i] * kHeadroom;
     }
     processor->Process (input, output, (size_t) kBlock);
     processor->Prepare();
@@ -149,8 +152,8 @@ void TextureEngine::runCloudsBlock()
     for (int i = 0; i < kBlock; ++i)
     {
         const float gain = from + (outputGain - from) * (float) (i + 1) / (float) kBlock;
-        const float l = (float) output[i].l / 32768.0f * gain;
-        const float r = (float) output[i].r / 32768.0f * gain;
+        const float l = output[i].l * gain;
+        const float r = output[i].r * gain;
         up.push (l, r, [this] (float outL, float outR) {
             fifoL[writePos & fifoMask] = outL;
             fifoR[writePos & fifoMask] = outR;

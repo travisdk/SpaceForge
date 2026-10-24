@@ -81,7 +81,9 @@ class GranularProcessor {
       void* small_buffer,
       size_t small_buffer_size);
 
-  void Process(ShortFrame* input, ShortFrame* output, size_t size);
+  // SpaceForge 2: floats in and out (the module's codec gave 16-bit integers). The scale is the
+  // codec's: full scale is 1.0; the output keeps the module's soft limiter.
+  void Process(FloatFrame* input, FloatFrame* output, size_t size);
   void Prepare();
   
   inline Parameters* mutable_parameters() {
@@ -150,7 +152,7 @@ class GranularProcessor {
 
  private:
   inline int32_t resolution() const {
-    return low_fidelity_ ? 8 : 16;
+    return low_fidelity_ ? 8 : 32; // SpaceForge 2: floats in full quality
   }
 
   inline float sample_rate() const {
@@ -190,7 +192,7 @@ class GranularProcessor {
   stmlib::Svf lp_filter_[2];
   
   AudioBuffer<RESOLUTION_8_BIT_MU_LAW> buffer_8_[2];
-  AudioBuffer<RESOLUTION_16_BIT> buffer_16_[2];
+  AudioBuffer<RESOLUTION_32_BIT_FLOAT> buffer_32_[2]; // SpaceForge 2: was 16-bit
   
   FloatFrame in_[kMaxBlockSize];
   FloatFrame in_downsampled_[kMaxBlockSize / kDownsamplingFactor];
@@ -198,7 +200,7 @@ class GranularProcessor {
   FloatFrame out_[kMaxBlockSize];
   FloatFrame fb_[kMaxBlockSize];
   
-  int16_t tail_buffer_[2][256];
+  float tail_buffer_[2][256]; // SpaceForge 2: was 16-bit
   
   Parameters parameters_;
   

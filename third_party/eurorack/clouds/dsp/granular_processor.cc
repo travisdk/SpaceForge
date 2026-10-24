@@ -85,7 +85,7 @@ void GranularProcessor::ProcessGranular(
         buffer_8_[i].WriteFade(
             &input_samples[i], size, 2, !parameters_.freeze);
       } else {
-        buffer_16_[i].WriteFade(
+        buffer_32_[i].WriteFade(
             &input_samples[i], size, 2, !parameters_.freeze);
       }
     }
@@ -109,7 +109,7 @@ void GranularProcessor::ProcessGranular(
       if (resolution() == 8) {
         player_.Play(buffer_8_, parameters_, &output[0].l, size);
       } else {
-        player_.Play(buffer_16_, parameters_, &output[0].l, size);
+        player_.Play(buffer_32_, parameters_, &output[0].l, size);
       }
       break;
 
@@ -117,7 +117,7 @@ void GranularProcessor::ProcessGranular(
       if (resolution() == 8) {
         ws_player_.Play(buffer_8_, parameters_, &output[0].l, size);
       } else {
-        ws_player_.Play(buffer_16_, parameters_, &output[0].l, size);
+        ws_player_.Play(buffer_32_, parameters_, &output[0].l, size);
       }
       break;
 
@@ -125,7 +125,7 @@ void GranularProcessor::ProcessGranular(
       if (resolution() == 8) {
         looper_.Play(buffer_8_, parameters_, &output[0].l, size);
       } else {
-        looper_.Play(buffer_16_, parameters_, &output[0].l, size);
+        looper_.Play(buffer_32_, parameters_, &output[0].l, size);
       }
       break;
 
@@ -157,8 +157,8 @@ void GranularProcessor::ProcessGranular(
 }
 
 void GranularProcessor::Process(
-    ShortFrame* input,
-    ShortFrame* output,
+    FloatFrame* input,
+    FloatFrame* output,
     size_t size) {
   // TIC
   if (bypass_) {
@@ -168,15 +168,15 @@ void GranularProcessor::Process(
   
   if (silence_ || reset_buffers_ ||
       previous_playback_mode_ != playback_mode_) {
-    short* output_samples = &output[0].l;
-    fill(&output_samples[0], &output_samples[size << 1], 0);
+    float* output_samples = &output[0].l;
+    fill(&output_samples[0], &output_samples[size << 1], 0.0f);
     return;
   }
   
-  // Convert input buffers to float, and mixdown for mono processing.
+  // Mixdown for mono processing. (SpaceForge 2: the input is float already.)
   for (size_t i = 0; i < size; ++i) {
-    in_[i].l = static_cast<float>(input[i].l) / 32768.0f;
-    in_[i].r = static_cast<float>(input[i].r) / 32768.0f;
+    in_[i].l = input[i].l;
+    in_[i].r = input[i].r;
   }
   if (num_channels_ == 1) {
     for (size_t i = 0; i < size; ++i) {
@@ -277,20 +277,21 @@ void GranularProcessor::Process(
     float dry_wet = dry_wet_mod.Next();
     float fade_in = Interpolate(lut_xfade_in, dry_wet, 16.0f);
     float fade_out = Interpolate(lut_xfade_out, dry_wet, 16.0f);
-    float l = static_cast<float>(input[i].l) / 32768.0f * fade_out;
-    float r = static_cast<float>(input[i].r) / 32768.0f * fade_out;
+    float l = input[i].l * fade_out;
+    float r = input[i].r * fade_out;
     l += out_[i].l * post_gain * fade_in;
     r += out_[i].r * post_gain * fade_in;
-    output[i].l = SoftConvert(l);
-    output[i].r = SoftConvert(r);
+    // SpaceForge 2: SoftConvert without the conversion to 16 bits.
+    output[i].l = SoftLimit(l * 0.5f);
+    output[i].r = SoftLimit(r * 0.5f);
   }
 }
 
 void GranularProcessor::PreparePersistentData() {
   persistent_state_.write_head[0] = low_fidelity_ ?
-      buffer_8_[0].head() : buffer_16_[0].head();
+      buffer_8_[0].head() : buffer_32_[0].head();
   persistent_state_.write_head[1] = low_fidelity_ ?
-      buffer_8_[1].head() : buffer_16_[1].head();
+      buffer_8_[1].head() : buffer_32_[1].head();
   persistent_state_.quality = quality();
   persistent_state_.spectral = playback_mode() == PLAYBACK_MODE_SPECTRAL;
 }
@@ -359,8 +360,8 @@ bool GranularProcessor::LoadPersistentData(const uint32_t* data) {
     buffer_8_[0].Resync(persistent_state_.write_head[0]);
     buffer_8_[1].Resync(persistent_state_.write_head[1]);
   } else {
-    buffer_16_[0].Resync(persistent_state_.write_head[0]);
-    buffer_16_[1].Resync(persistent_state_.write_head[1]);
+    buffer_32_[0].Resync(persistent_state_.write_head[0]);
+    buffer_32_[1].Resync(persistent_state_.write_head[1]);
   }
   parameters_.freeze = true;
   silence_ = false;
@@ -411,7 +412,7 @@ void GranularProcessor::Prepare() {
 
     BufferAllocator allocator(workspace, workspace_size);
     diffuser_.Init(allocator.Allocate<float>(2048));
-    reverb_.Init(allocator.Allocate<uint16_t>(16384));
+    reverb_.Init(allocator.Allocate<float>(16384)); // SpaceForge 2: floats
     
     size_t correlator_block_size = (kMaxWSOLASize / 32) + 2;
     uint32_t* correlator_data = allocator.Allocate<uint32_t>(
@@ -419,7 +420,9 @@ void GranularProcessor::Prepare() {
     correlator_.Init(
         &correlator_data[0],
         &correlator_data[correlator_block_size]);
-    pitch_shifter_.Init((uint16_t*)correlator_data);
+    // SpaceForge 2: floats, in their own memory (the module shared the correlator's and ran
+    // past its end; only one of the two is used in each mode).
+    pitch_shifter_.Init(allocator.Allocate<float>(4096));
     
     if (playback_mode_ == PLAYBACK_MODE_SPECTRAL) {
       phase_vocoder_.Init(
@@ -434,9 +437,9 @@ void GranularProcessor::Prepare() {
               (buffer_size[i]),
               tail_buffer_[i]);
         } else {
-          buffer_16_[i].Init(
+          buffer_32_[i].Init(
               buffer[i],
-              ((buffer_size[i]) >> 1),
+              ((buffer_size[i]) / sizeof(float)), // SpaceForge 2: floats
               tail_buffer_[i]);
         }
       }
@@ -456,7 +459,7 @@ void GranularProcessor::Prepare() {
     if (resolution() == 8) {
       ws_player_.LoadCorrelator(buffer_8_);
     } else {
-      ws_player_.LoadCorrelator(buffer_16_);
+      ws_player_.LoadCorrelator(buffer_32_);
     }
     correlator_.EvaluateSomeCandidates();
   }

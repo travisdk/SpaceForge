@@ -3,6 +3,7 @@
 
 #include "plugin/PluginProcessor.h"
 #include "plugin/Defaults.h"
+#include "plugin/PluginEditor.h"
 
 using namespace spaceforge;
 
@@ -105,10 +106,34 @@ void SpaceForgeProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::
     updateEngine();
     if (auto* head = getPlayHead())
         if (const auto position = head->getPosition())
-            engine.setTempo (position->getBpm().orFallback (0.0), position->getIsPlaying(), position->getPpqPosition().orFallback (0.0));
+        {
+            const double hostBpm = position->getBpm().orFallback (0.0);
+            engine.setTempo (hostBpm, position->getIsPlaying(), position->getPpqPosition().orFallback (0.0));
+            if (std::isfinite (hostBpm) && hostBpm >= 20.0 && hostBpm <= 999.0)
+                bpm.store (hostBpm);
+        }
     float* left = buffer.getWritePointer (0);
     float* right = buffer.getWritePointer (1);
+
+    // A hit in the input (for the echo rings): the peak jumps well above its recent level.
+    const auto blockSeconds = (float) (numSamples / getSampleRate());
+    const float inPeak = buffer.getMagnitude (0, numSamples);
+    inputFast = inPeak > inputFast ? inPeak : inputFast * std::exp (-blockSeconds / 0.03f);
+    if (onsetHold > 0)
+        --onsetHold;
+    else if (std::isfinite (inPeak) && inPeak > 0.003f && inPeak > 2.0f * inputSlow)
+    {
+        onsetCount.fetch_add (1);
+        onsetHold = juce::roundToInt (0.08f / blockSeconds);
+    }
+    inputSlow += (inputFast - inputSlow) * (1.0f - std::exp (-blockSeconds / 0.3f));
+
     engine.process (left, right, left, right, numSamples);
+
+    const float outPeak = buffer.getMagnitude (0, numSamples);
+    const float decayed = outputLevel.load() * std::exp (-blockSeconds / 0.3f);
+    outputLevel.store (std::isfinite (outPeak) ? std::max (outPeak, decayed) : 0.0f);
+    panPosition.store (engine.panPosition());
 }
 
 void SpaceForgeProcessor::getStateInformation (juce::MemoryBlock& destData)
@@ -167,7 +192,7 @@ void SpaceForgeProcessor::setStateInformation (const void* data, int sizeInBytes
 
 juce::AudioProcessorEditor* SpaceForgeProcessor::createEditor()
 {
-    return new juce::GenericAudioProcessorEditor (*this);
+    return new SpaceForgeEditor (*this);
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()

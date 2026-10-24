@@ -7,7 +7,8 @@
 
 #include "TestUtils.h"
 #include "plugin/Defaults.h"
-#include "plugin/PluginProcessor.h"
+#include "analysis/TestSignals.h"
+#include "plugin/PluginEditor.h"
 
 using namespace spaceforge;
 
@@ -100,6 +101,49 @@ void testTexts()
     }
 }
 
+void testEditor()
+{
+    // The window shows under every control what it does, in the same words as the DAW, follows
+    // the knobs, and scales with the window. The picture reacts to sound: hits send echo rings.
+    SpaceForgeProcessor p;
+    auto set = [&p] (const char* id, float value) { p.parameters().getParameter (id)->setValueNotifyingHost (value); };
+    set (plugin::kSpaceId, 0.25f);
+    set (plugin::kEchoId, 0.5f);
+    set (plugin::kMixId, 0.7f);
+    set (plugin::kFreezeId, 1.0f);
+    std::unique_ptr<juce::AudioProcessorEditor> editor (p.createEditor());
+    auto* view = dynamic_cast<SpaceForgeEditor*> (editor.get());
+    CHECK (view != nullptr);
+    if (view == nullptr)
+        return;
+    auto dawText = [&p] (const char* id) { return p.parameters().getParameter (id)->getCurrentValueAsText(); };
+    view->advanceAnimation (0.1f);
+    CHECK (view->macro (0).getValueText() == dawText (plugin::kSpaceId));
+    CHECK (view->macro (1).getValueText() == dawText (plugin::kEchoId));
+    CHECK (view->mixText() == "70 %");
+    CHECK (view->freezeText() == "holder rummet");
+
+    editor->setSize (SpaceForgeEditor::kWidth * 3 / 2, SpaceForgeEditor::kHeight * 3 / 2);
+    CHECK (editor->getWidth() == SpaceForgeEditor::kWidth * 3 / 2);
+
+    // bleeps with Echo on: the picture sends out rings
+    p.prepareToPlay (48000.0, 1600);
+    const auto sound = analysis::makeBleeps (48000.0, 1.0).audio;
+    juce::AudioBuffer<float> buffer (2, 1600);
+    juce::MidiBuffer midi;
+    set (plugin::kFreezeId, 0.0f);
+    for (size_t pos = 0; pos + 1600 <= sound.l.size(); pos += 1600)
+    {
+        buffer.copyFrom (0, 0, &sound.l[pos], 1600);
+        buffer.copyFrom (1, 0, &sound.r[pos], 1600);
+        p.processBlock (buffer, midi);
+        view->advanceAnimation (1.0f / 30.0f);
+    }
+    std::printf ("Editor: %d hits heard, output level %.2f\n", p.getOnsetCount(), p.getOutputLevel());
+    CHECK (p.getOnsetCount() >= 3);
+    CHECK (p.getOutputLevel() > 0.01f);
+}
+
 void testStateRoundTrip()
 {
     SpaceForgeProcessor a;
@@ -168,6 +212,7 @@ int main()
     testProcessing (juce::AudioChannelSet::stereo());
     testProcessing (juce::AudioChannelSet::mono());
     testTexts();
+    testEditor();
     testStateRoundTrip();
     testHostileState();
     return finish ("plugin");

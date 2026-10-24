@@ -333,10 +333,14 @@ namespace Cloudseed
 
 			// completely zero if no input present
 			// Previously, the very small values were causing some really strange CPU spikes
+			// SpaceForge 2: the threshold was -90 dBFS per sample, a dead zone around zero that
+			// distorted every quiet signal into hiss (the sky's grains, quiet tails; measured).
+			// Now only values that are effectively zero (below -400 dB) become zero; the
+			// plug-in also runs with denormals flushed, which is what the CPU spikes were.
 			for (int i = 0; i < bufSize; i++)
 			{
 				auto n = tempBuffer[i];
-				if (n * n < 0.000000001)
+				if (std::fabs(n) < 1e-20f)
 					tempBuffer[i] = 0;
 			}
 
