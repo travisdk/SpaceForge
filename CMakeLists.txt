@@ -83,7 +83,8 @@ add_library(spaceforge_dsp STATIC
     source/dsp/SpaceEngine.cpp
     source/dsp/TextureEngine.cpp
     source/dsp/EchoEngine.cpp
-    source/dsp/Macros.cpp)
+    source/dsp/Macros.cpp
+    source/dsp/Modes.cpp)
 target_include_directories(spaceforge_dsp PUBLIC source)
 target_link_libraries(spaceforge_dsp
     PUBLIC cloudseed clouds

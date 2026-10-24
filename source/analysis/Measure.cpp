@@ -7,6 +7,7 @@
 #include <cmath>
 #include <complex>
 #include <cstdint>
+#include <iterator>
 #include <numeric>
 
 namespace spaceforge::analysis
@@ -452,5 +453,51 @@ double copyStrength (const Stereo& out, const std::vector<float>& original, size
 double modulationCents (double depthMs, double rateHz)
 {
     return 1200.0 * std::log2 (1.0 + 2.0 * kPi * rateHz * depthMs / 1000.0);
+}
+double tailMovementDb (const Stereo& s, double sampleRate, size_t from, size_t to)
+{
+    const auto window = (size_t) 1 << (size_t) std::lround (std::log2 (0.043 * sampleRate)), hop = window / 2;
+    to = std::min (to, s.size());
+    std::vector<double> hann (window);
+    for (size_t i = 0; i < window; ++i)
+        hann[i] = 0.5 - 0.5 * std::cos (2.0 * kPi * (double) i / (double) window);
+    const double centres[] = { 250.0, 500.0, 1000.0, 2000.0, 4000.0 };
+    std::vector<std::vector<double>> levels (std::size (centres));
+    for (size_t start = from; start + window <= to; start += hop)
+    {
+        std::vector<std::complex<double>> buf (window);
+        for (size_t i = 0; i < window; ++i)
+            buf[i] = { 0.5 * ((double) s.l[start + i] + s.r[start + i]) * hann[i], 0.0 };
+        fft (buf);
+        for (size_t band = 0; band < std::size (centres); ++band)
+        {
+            const auto lo = (size_t) (centres[band] / std::sqrt (2.0) / sampleRate * (double) window);
+            const auto hi = (size_t) (centres[band] * std::sqrt (2.0) / sampleRate * (double) window);
+            double sum = 0.0;
+            for (size_t k = lo; k <= hi; ++k)
+                sum += std::norm (buf[k]);
+            levels[band].push_back (10.0 * std::log10 (std::max (sum, 1.0e-30)));
+        }
+    }
+    double total = 0.0;
+    for (const auto& y : levels)
+    {
+        // straight line through the band's levels (least squares), then the RMS around it
+        const double n = (double) y.size();
+        double sx = 0.0, sy = 0.0, sxx = 0.0, sxy = 0.0;
+        for (size_t i = 0; i < y.size(); ++i)
+        {
+            sx += (double) i;
+            sy += y[i];
+            sxx += (double) i * (double) i;
+            sxy += (double) i * y[i];
+        }
+        const double slope = (n * sxy - sx * sy) / std::max (n * sxx - sx * sx, 1.0e-12), offset = (sy - slope * sx) / n;
+        double residual = 0.0;
+        for (size_t i = 0; i < y.size(); ++i)
+            residual += std::pow (y[i] - (offset + slope * (double) i), 2.0);
+        total += std::sqrt (residual / std::max (n, 1.0));
+    }
+    return total / (double) levels.size();
 }
 } // namespace spaceforge::analysis

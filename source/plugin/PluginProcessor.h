@@ -7,7 +7,8 @@
 #include "dsp/SpaceEngine.h"
 
 // Granular texture (Clouds) and echoes into the room (Cloud Seed), moved by the four macros
-// Space, Echo, Motion and Tone, plus Mix and Freeze. Stereo out, mono or stereo in.
+// Space, Echo, Motion and Tone, plus Mix and Freeze, in one of the Modes. Stereo out, mono or
+// stereo in.
 class SpaceForgeProcessor : public juce::AudioProcessor
 {
 public:
@@ -54,7 +55,8 @@ public:
     static constexpr int kMaxStateBytes = 1 << 20;
 
 private:
-    static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
+    juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
+    int currentMode() const;
     void updateEngine();
 
     juce::AudioProcessorValueTreeState apvts;
@@ -64,6 +66,7 @@ private:
     std::atomic<float>* toneValue = nullptr;
     std::atomic<float>* mixValue = nullptr;
     std::atomic<float>* freezeValue = nullptr;
+    std::atomic<float>* modeValue = nullptr;
     spaceforge::dsp::SpaceEngine engine;
 
     std::atomic<float> outputLevel { 0.0f }, panPosition { 0.0f };

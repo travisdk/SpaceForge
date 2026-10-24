@@ -3,6 +3,7 @@
 
 #include "plugin/PluginProcessor.h"
 #include "plugin/Defaults.h"
+#include "dsp/Modes.h"
 #include "plugin/PluginEditor.h"
 
 using namespace spaceforge;
@@ -19,6 +20,13 @@ SpaceForgeProcessor::SpaceForgeProcessor()
     toneValue = apvts.getRawParameterValue (plugin::kToneId);
     mixValue = apvts.getRawParameterValue (plugin::kMixId);
     freezeValue = apvts.getRawParameterValue (plugin::kFreezeId);
+    modeValue = apvts.getRawParameterValue (plugin::kModeId);
+}
+
+int SpaceForgeProcessor::currentMode() const
+{
+    const float v = modeValue != nullptr ? modeValue->load() : 0.0f;
+    return std::isfinite (v) ? std::clamp ((int) std::lround (v), 0, dsp::kNumModes - 1) : 0;
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout SpaceForgeProcessor::createParameterLayout()
@@ -28,7 +36,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout SpaceForgeProcessor::createP
     // typed into the DAW goes back to the middle of the range showing that text; a plain number
     // is read as percent. Some wrappers hand the text over without decoding UTF-8 (each byte one
     // character), so that reading is tried too.
-    auto macro = [&params] (const char* id, const char* name, float init, std::string (*describe) (float)) {
+    auto macro = [&params] (const char* id, const char* name, float init, std::function<std::string (float)> describe) {
         auto toValue = [describe] (const juce::String& text) {
             const auto trimmed = text.trim();
             const auto utf8 = trimmed.toStdString();
@@ -54,7 +62,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout SpaceForgeProcessor::createP
                 .withValueFromStringFunction (toValue)));
     };
     using dsp::MacroPositions;
-    macro (plugin::kSpaceId, "Space", MacroPositions::kInitSpace, dsp::describeSpace);
+    // Space shows the seconds of the Mode in use (each Mode has its own range).
+    macro (plugin::kSpaceId, "Space", MacroPositions::kInitSpace, [this] (float v) { return dsp::describeSpace (v, currentMode()); });
     macro (plugin::kEchoId, "Echo", MacroPositions::kInitEcho, dsp::describeEcho);
     macro (plugin::kMotionId, "Motion", MacroPositions::kInitMotion, dsp::describeMotion);
     macro (plugin::kToneId, "Tone", MacroPositions::kInitTone, dsp::describeTone);
@@ -63,6 +72,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout SpaceForgeProcessor::createP
         juce::AudioParameterFloatAttributes()
             .withStringFromValueFunction ([] (float v, int) { return juce::String (juce::roundToInt (v * 100.0f)) + " %"; })
             .withValueFromStringFunction ([] (const juce::String& t) { return t.retainCharacters ("0123456789.-").getFloatValue() / 100.0f; })));
+    juce::StringArray modeNames;
+    for (int m = 0; m < dsp::kNumModes; ++m)
+        modeNames.add (dsp::modeSetup (m).name);
+    params.push_back (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID { plugin::kModeId, 1 }, "Mode", modeNames, 0));
     params.push_back (std::make_unique<juce::AudioParameterBool> (
         juce::ParameterID { plugin::kFreezeId, 1 }, "Freeze", false,
         juce::AudioParameterBoolAttributes()
@@ -80,7 +93,7 @@ void SpaceForgeProcessor::prepareToPlay (double sampleRate, int)
 
 void SpaceForgeProcessor::updateEngine()
 {
-    engine.setMacros ({ spaceValue->load(), echoValue->load(), motionValue->load(), toneValue->load() });
+    engine.setMacros ({ spaceValue->load(), echoValue->load(), motionValue->load(), toneValue->load(), currentMode() });
     engine.setMix (mixValue->load());
     engine.setFreeze (freezeValue->load() >= 0.5f);
 }

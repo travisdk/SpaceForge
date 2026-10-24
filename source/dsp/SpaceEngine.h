@@ -25,6 +25,8 @@ namespace spaceforge::dsp
 //   with the host's buffer size. Here it always runs in fixed chunks of ~2.7 ms; the wet signal
 //   is that much late (it acts as a little extra pre-delay), the dry signal is not delayed.
 // - The four macros move the sound; their positions are smoothed (no clicks from a jump).
+// - A new Mode (MacroPositions::mode) fades the wet signal out (20 ms), switches the room and the
+//   sky to the Mode's setup with nothing of the old tail left, and fades back in.
 // - Freeze stops new input entering the room and holds what is in it.
 // - The wet signal is mono below SpaceVoicing::monoBassHz.
 //
@@ -36,6 +38,7 @@ public:
     ~SpaceEngine();
 
     void prepare (double sampleRate);
+    // The voicing of the current Mode (for the offline tools: Init's Mode unless set otherwise).
     void setVoicing (const SpaceVoicing& voicing);
     const SpaceVoicing& voicing() const { return currentVoicing; }
 
@@ -67,13 +70,18 @@ public:
     static constexpr int kMaxChunk = 1024;
 
 private:
-    void applyVoicing();
+    // Seeds allocate in Cloud Seed: only outside the audio thread (all Modes share them).
+    void applyVoicing (bool withSeeds = true);
+    void switchMode (int mode);
     void applySettings (const MacroSettings& s, bool force);
     void applyFreeze (bool on);
     void processChunk();
 
     std::unique_ptr<Cloudseed::ReverbChannel> left, right;
     SpaceVoicing currentVoicing;
+    int activeMode = 0;
+    float modeFade = 1.0f, modeFadeStep = 0.0f; // wet gain while a Mode changes
+    bool modeFading = false;
     double sampleRate = 48000.0;
     int chunk = 128;
     int pos = 0;

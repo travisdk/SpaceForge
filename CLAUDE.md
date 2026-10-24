@@ -50,9 +50,16 @@ Kan Clouds' egen reverb gøre Cloud Seed overflødig i nogle presets, eller omve
 
 ## Kontroller
 
-Kun disse i v1: **Space, Echo, Motion, Tone, Mix, Freeze.** Nye knapper tilføjes kun, når Henrik beder om dem efter at have lyttet.
+Kun disse i v1: **Mode, Space, Echo, Motion, Tone, Mix, Freeze.** Nye knapper tilføjes kun, når Henrik beder om dem efter at have lyttet. (Mode blev tilføjet på Henriks ønske: med kun fire makroer lød alle presets som den samme lyd.)
 
-Makroerne har **faste roller, fast retning og én fælles absolut skala i alle presets.** En knapposition betyder altid det samme, uanset preset. Højre er altid "mere".
+**Mode** er én synlig vælger med 6 karakterer (`source/dsp/Modes.cpp`): hver er en fast intern opsætning af Cloud Seed (fra Cloud Seeds factory-presets) og Clouds (dens fire tilstande). Henriks regler:
+- Inden for én Mode er skalaen fast og ens for alle presets. Kun Mode må ændre en knaps spænd, aldrig et preset
+- Space på 50 % er et mellemstort rum (ca. 12 s) i alle Modes, så knappen føles nogenlunde ens; yderpunkterne må variere mellem Modes
+- Teksten under Space viser altid de målte sekunder for den valgte Mode, og det testes
+- Terningen ændrer aldrig Mode; Mode er brugerens valg
+- Lo-fi-tilstande (fx Clouds' 8-bit eller spektrale kvantisering) bruges kun, hvis de bevidst er en del af en Mode
+
+Makroerne har **faste roller og fast retning i alle Modes, og inden for en Mode én fælles absolut skala i alle presets.** En knapposition betyder altid det samme, uanset preset. Højre er altid "mere".
 
 - **Space**: tæt og kort -> stort og uendeligt. Styrer decay og stereobredde (ikke delaylinjernes længde: at ændre den, mens der er lyd i linjerne, klikker; målt i fase 4)
 - **Echo**: intet ekko -> mange gentagelser. Styrer ekko-mængde og feedback
@@ -77,7 +84,7 @@ Regler:
 - Kun **Init** som factory-preset til at starte med. Henrik laver resten ved at dreje og gemme
 - JSON, én fil pr. preset, brugerpresets i brugerens dokumentmappe
 - Preset-skift er **rent**: lyden skifter straks med en kort crossfade (30 til 50 ms), ingen spillover. Knap-animationen er kun visuel og må aldrig få lyden til at glide. Delaytider crossfades i stedet for at glide (ingen pitch-sweep)
-- Terningen flytter de fire makroer synligt (ca. 250 ms animation), mindst to af dem mærkbart. Mix og Freeze røres aldrig. Fortryd for de sidste 10 kast. Ændret preset markeres med *
+- Terningen flytter de fire makroer synligt (ca. 250 ms animation), mindst to af dem mærkbart. Mode, Mix og Freeze røres aldrig. Fortryd for de sidste 10 kast. Ændret preset markeres med *
 - **Alt der ændrer lyden, skal kunne ses i UI'et**
 
 ## Lydmål og måling

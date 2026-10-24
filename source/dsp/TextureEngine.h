@@ -29,6 +29,10 @@ struct TextureVoicing
     double stereoSpread = 0.7;
     double feedback = 0.25;
     double gainDb = 5.1;        // makes the grains as loud as what goes in (calibrated with pink noise)
+    // Clouds' four modes: 0 granular, 1 stretch (time-stretching), 2 looping delay (with pitch
+    // shifting), 3 spectral. The knobs' meanings change with the mode (Clouds' manual).
+    int playbackMode = 0;
+    double pitchSemitones = 0.0;
 };
 
 // Clouds (granular texture) at any host sample rate. Clouds is written for exactly 32 kHz in

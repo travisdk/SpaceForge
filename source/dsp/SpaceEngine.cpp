@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 #include "dsp/SpaceEngine.h"
+#include "dsp/Modes.h"
 
 #include <algorithm>
 #include <cmath>
@@ -14,6 +15,7 @@ namespace
 constexpr double kPi = 3.14159265358979323846;
 constexpr double kMixSmoothingSeconds = 0.03;
 constexpr double kFreezeFadeSeconds = 0.05;
+constexpr double kModeFadeSeconds = 0.02; // out and in again: 40 ms in all (CLAUDE.md: 30-50 ms)
 // The knobs glide to a new position in about this time (smooth, but quick to follow).
 constexpr double kMacroSmoothingSeconds = 0.08;
 constexpr double kPanSmoothingSeconds = 0.02;
@@ -74,6 +76,14 @@ void SpaceEngine::prepare (double newSampleRate)
     panCoeff = (float) (1.0 - std::exp (-1.0 / (kPanSmoothingSeconds * sampleRate)));
     tiltCoeff = (float) (1.0 - std::exp (-2.0 * kPi * kTiltHz / sampleRate));
     inputGainStep = (float) (1.0 / (kFreezeFadeSeconds * sampleRate));
+    modeFadeStep = (float) (1.0 / (kModeFadeSeconds * sampleRate));
+    if (macroTarget.mode != activeMode)
+    {
+        const bool grains = currentVoicing.grainsEnabled;
+        activeMode = std::clamp (macroTarget.mode, 0, kNumModes - 1);
+        currentVoicing = modeVoicing (activeMode);
+        currentVoicing.grainsEnabled = grains;
+    }
     applyVoicing();
     reset();
 }
@@ -84,7 +94,7 @@ void SpaceEngine::setVoicing (const SpaceVoicing& voicing)
     applyVoicing();
 }
 
-void SpaceEngine::applyVoicing()
+void SpaceEngine::applyVoicing (bool withSeeds)
 {
     // The fixed part of the sound. Seeds allocate in Cloud Seed: never on the audio thread.
     namespace P = Cloudseed::Parameter;
@@ -101,14 +111,14 @@ void SpaceEngine::applyVoicing()
         set (P::EarlyOut, v.earlyLevelDb);
         set (P::LateOut, v.lateLevelDb);
 
-        set (P::TapEnabled, 0.0);
-        set (P::TapCount, 1.0);
-        set (P::TapDecay, 1.0);
-        set (P::TapLength, 10.0);
+        set (P::TapEnabled, v.tapsEnabled ? 1.0 : 0.0);
+        set (P::TapCount, v.tapCount);
+        set (P::TapDecay, v.tapDecay);
+        set (P::TapLength, v.tapLengthMs);
 
         set (P::TapPredelay, v.preDelayMs);
 
-        set (P::EarlyDiffuseEnabled, 1.0);
+        set (P::EarlyDiffuseEnabled, v.earlyEnabled ? 1.0 : 0.0);
         set (P::EarlyDiffuseCount, v.earlyStages);
         set (P::EarlyDiffuseDelay, v.earlyDelayMs);
         set (P::EarlyDiffuseFeedback, v.earlyFeedback);
@@ -118,7 +128,7 @@ void SpaceEngine::applyVoicing()
         set (P::LateMode, 1.0); // listen after each line's diffuser: denser
         set (P::LateLineCount, v.lineCount);
         set (P::LateLineSize, v.lineSizeMs);
-        set (P::LateDiffuseEnabled, 1.0);
+        set (P::LateDiffuseEnabled, v.lateEnabled ? 1.0 : 0.0);
         set (P::LateDiffuseCount, v.lateStages);
         set (P::LateDiffuseDelay, v.lateDiffuseDelayMs);
         set (P::LateDiffuseFeedback, v.lateDiffuseFeedback);
@@ -129,11 +139,14 @@ void SpaceEngine::applyVoicing()
         set (P::EqLowFreq, v.lowShelfHz);
         set (P::EqHighFreq, v.highShelfHz);
 
-        set (P::EqCrossSeed, v.crossSeed);
-        set (P::SeedTap, v.seedTap);
-        set (P::SeedDiffusion, v.seedDiffusion);
-        set (P::SeedDelay, v.seedDelay);
-        set (P::SeedPostDiffusion, v.seedPostDiffusion);
+        if (withSeeds)
+        {
+            set (P::EqCrossSeed, v.crossSeed);
+            set (P::SeedTap, v.seedTap);
+            set (P::SeedDiffusion, v.seedDiffusion);
+            set (P::SeedDelay, v.seedDelay);
+            set (P::SeedPostDiffusion, v.seedPostDiffusion);
+        }
     }
     for (auto& f : sideHighPass)
         f.setup (v.monoBassHz, sampleRate);
@@ -215,6 +228,10 @@ void SpaceEngine::setTempo (double newBpm, bool playing, double ppqPosition)
 
 void SpaceEngine::reset()
 {
+    if (const int wanted = std::clamp (macroTarget.mode, 0, kNumModes - 1); wanted != activeMode)
+        switchMode (wanted);
+    modeFading = false;
+    modeFade = 1.0f;
     left->ClearBuffers();
     right->ClearBuffers();
     texture.reset();
@@ -244,6 +261,33 @@ void SpaceEngine::reset()
     panL = panR = 1.0f;
     gains = gainsNow();
     skyLevel = 0.0f;
+}
+
+void SpaceEngine::switchMode (int mode)
+{
+    // The wet signal is silent here: the old tail goes, the new setup comes in whole. No seeds
+    // change (all Modes share them), so nothing allocates.
+    const bool grains = currentVoicing.grainsEnabled;
+    activeMode = mode;
+    currentVoicing = modeVoicing (mode);
+    currentVoicing.grainsEnabled = grains;
+    applyVoicing (false);
+    left->ClearBuffers();
+    right->ClearBuffers();
+    texture.reset();
+    echo.reset();
+    for (auto* filters : { &sideHighPass, &midHighPass, &midLowPass })
+        for (auto& f : *filters)
+            f.s1 = f.s2 = 0.0;
+    tiltLowL = tiltLowR = 0.0f;
+    roomL.fill (0.0f);
+    roomR.fill (0.0f);
+    macroNow = macroTarget;
+    macroNow.mode = mode;
+    applySettings (mapMacros (macroNow), true);
+    gains = gainsNow();
+    skyLevel = 0.0f;
+    modeFading = false;
 }
 
 void SpaceEngine::process (const float* inputL, const float* inputR, float* outL, float* outR, int numSamples)
@@ -296,6 +340,15 @@ void SpaceEngine::process (const float* inputL, const float* inputR, float* outL
 
 void SpaceEngine::processChunk()
 {
+    // A new Mode: fade out, switch once silent, fade in (in the loop at the end).
+    const int wantedMode = std::clamp (macroTarget.mode, 0, kNumModes - 1);
+    if (wantedMode != activeMode)
+    {
+        modeFading = true;
+        if (modeFade <= 0.0f)
+            switchMode (wantedMode);
+    }
+
     if (freezeTarget != frozen)
     {
         applyFreeze (freezeTarget);
@@ -404,7 +457,8 @@ void SpaceEngine::processChunk()
         // of the pan to the filters' phase shift.)
         const float midBass = midLowPass[1].process (midLowPass[0].process (mid));
         const float midHigh = midHighPass[1].process (midHighPass[0].process (mid));
-        const float level = glideAt (&Gains::wet, i);
+        modeFade = modeFading ? std::max (0.0f, modeFade - modeFadeStep) : std::min (1.0f, modeFade + modeFadeStep);
+        const float level = glideAt (&Gains::wet, i) * modeFade;
         wetL[k] = (midBass + (midHigh + side) * panGainL[k]) * level;
         wetR[k] = (midBass + (midHigh - side) * panGainR[k]) * level;
         finite = finite && std::isfinite (wetL[k]) && std::isfinite (wetR[k]);

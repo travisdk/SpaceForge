@@ -45,7 +45,7 @@ void STFT::Init(
     float* fft_buffer,
     float* ifft_buffer,
     const float* window_lut,
-    short* analysis_synthesis_buffer,
+    float* analysis_synthesis_buffer,
     Modifier* modifier) {
   fft_size_ = fft_size;
   hop_size_ = hop_size;
@@ -81,8 +81,8 @@ void STFT::Reset() {
   buffer_ptr_ = 0;
   process_ptr_ = (2 * hop_size_) % buffer_size_;
   block_size_ = 0;
-  fill(&analysis_[0], &analysis_[buffer_size_], 0);
-  fill(&synthesis_[0], &synthesis_[buffer_size_], 0);
+  fill(&analysis_[0], &analysis_[buffer_size_], 0.0f);
+  fill(&synthesis_[0], &synthesis_[buffer_size_], 0.0f);
   ready_ = 0;
   done_ = 0;
 }
@@ -97,9 +97,9 @@ void STFT::Process(
   while (size) {
     size_t processed = min(size, hop_size_ - block_size_);
     for (size_t i = 0; i < processed; ++i) {
-      int32_t sample = *input * 32768.0f;
-      analysis_[buffer_ptr_ + i] = Clip16(sample);
-      *output = static_cast<float>(synthesis_[buffer_ptr_ + i]) / 16384.0f;
+      // SpaceForge 2: kept as a float (was rounded and clipped to 16 bits).
+      analysis_[buffer_ptr_ + i] = *input * 32768.0f;
+      *output = synthesis_[buffer_ptr_ + i] / 16384.0f;
       input += stride;
       output += stride;
     }
@@ -187,12 +187,12 @@ void STFT::Buffer() {
   for (size_t i = 0; i < fft_size_; ++i) {
     float s = ifft_out_[i] * w[0] * inverse_window_size;
     
-    int32_t x = static_cast<int32_t>(s);
+    float x = s; // SpaceForge 2: float overlap-add (was truncated and clipped to 16 bits)
     if (i < fft_size_ - hop_size_) {
       // Overlap-add.
       x += synthesis_[destination_ptr];
     }
-    synthesis_[destination_ptr] = Clip16(x);
+    synthesis_[destination_ptr] = x;
     ++destination_ptr;
     if (destination_ptr >= buffer_size_) {
       destination_ptr -= buffer_size_;

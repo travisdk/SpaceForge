@@ -52,6 +52,19 @@ std::unique_ptr<dsp::SpaceEngine> makeEngine (double rate)
     return engine;
 }
 
+// The same with Space at 50 % (a medium room in every Mode): Init's room holds itself, so a
+// tail that must end or be measured steadily needs a finite one.
+std::unique_ptr<dsp::SpaceEngine> makeMediumEngine (double rate)
+{
+    dsp::MacroPositions medium;
+    medium.space = 0.5f;
+    std::srand (1);
+    auto engine = std::make_unique<dsp::SpaceEngine>();
+    engine->setMacros (medium);
+    engine->prepare (rate);
+    return engine;
+}
+
 double maxDifference (const analysis::Stereo& a, const analysis::Stereo& b)
 {
     double d = 0.0;
@@ -62,8 +75,15 @@ double maxDifference (const analysis::Stereo& a, const analysis::Stereo& b)
 
 void testCharacterTargets()
 {
-    std::printf ("Character at 48 kHz against the targets:\n");
-    auto engine = makeEngine (48000.0);
+    // The room's own character (measured without the sky) where its decay setting is the one
+    // tuned in phase 2 (9.5 s): Space 80 % in Sky's scale since the Modes (Init now holds itself).
+    std::printf ("Character at 48 kHz, Space 80 %% (the room as in phase 2), against the targets:\n");
+    dsp::MacroPositions room;
+    room.space = 0.8f;
+    std::srand (1);
+    auto engine = std::make_unique<dsp::SpaceEngine>();
+    engine->setMacros (room);
+    engine->prepare (48000.0);
     const auto c = analysis::measureCharacter (*engine, 48000.0, plugin::kDefaultMix);
     for (const auto& t : analysis::targetsFor (c))
     {
@@ -80,7 +100,7 @@ void testSampleRates()
     double t48 = 0.0, level48 = 0.0;
     for (const double rate : { 48000.0, 44100.0, 96000.0 })
     {
-        auto engine = makeEngine (rate);
+        auto engine = makeMediumEngine (rate);
         const auto ir = analysis::render (*engine, analysis::makeNoiseBurst (rate, 30.0).audio, rate);
         const double t1k = analysis::reverbTimePerOctave (ir, rate)[3];
         const auto pink = analysis::makePinkNoise (rate, 10.0, 0.125f, 3);
@@ -140,7 +160,7 @@ void testFreezeReleases()
     // After Freeze is released the room decays again: at least 10 dB down 15 s later (the sky
     // keeps the tail alive far longer than the room alone, which fell 20 dB).
     const double rate = 48000.0;
-    auto engine = makeEngine (rate);
+    auto engine = makeMediumEngine (rate);
     analysis::RenderOptions options;
     options.freezeOnSeconds = 3.0;
     options.freezeOffSeconds = 8.0;

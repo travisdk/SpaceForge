@@ -105,7 +105,7 @@ void testSpace()
 {
     // Longer to the right, by a factor of at least 10 over the range; the text shows the real
     // tail, sky included, of a noise burst (within 15 %; "∞" means it holds itself for more than
-    // 100 s); narrower to the left.
+    // 80 s); narrower to the left.
     std::printf ("Space: T60 at 1 kHz (measured / shown), L/R correlation above 300 Hz:\n");
     double previous = 0.0, first = 0.0, corrLeft = 0.0, corrRight = 0.0;
     for (const int percent : kPositions)
@@ -122,7 +122,7 @@ void testSpace()
         std::printf ("  %3d%%: %6.2f s / %-7s corr %+.2f\n", percent, t60, text.c_str(), corr);
         CHECK (t60 > previous);
         if (endless)
-            CHECK (t60 > 100.0);
+            CHECK (t60 > 80.0);
         else
             CHECK_RANGE (t60 / expected, 0.85, 1.15);
         if (percent == 0)

@@ -9,6 +9,7 @@ with it. Licenses verified 2026-10-23 by reading every vendored file's header.
 |---|---|---|---|---|
 | CloudSeedCore | https://github.com/GhostNoteAudio/CloudSeedCore | `deb21ded9eb7dad9b3ff94ce1ba96a963716594e` (2024-09-22) | MIT, © 2024 Ghost Note Audio / Ghost Note Engineering Ltd | Rooms and echoes (Cloud Seed algorithm) |
 | Clouds DSP (`clouds/dsp`, `clouds/resources.*`, `clouds/drivers/debug_pin.h`) | https://github.com/pichenettes/eurorack | `f4cfa7697095a28d292bff758beb51deb49b5a86` (2026-10-12) | MIT, © 2014–2015 Emilie Gillet | Granular texture |
+| Cloud Seed v1 factory programs (`third_party/cloudseed-programs/`: 9 JSON files and `license.txt`) | https://github.com/ValdemarOrn/CloudSeed (branch `legacy-v1`) | `13a625e00ec47db98b158a17e309d2cdaebb57ed` (2024-05-26) | MIT, © 2018 Valdemar Erlingsson | Starting points for the Modes' rooms (`source/dsp/Modes.cpp`; read in real units with v1's own scaling by `tools/modes/cloudseed_v1_programs.py`) |
 | stmlib (11 files used by the Clouds DSP) | https://github.com/pichenettes/stmlib | `e3bd7c9cc00e4364166f9905c0509b6ffd0535ec` (2023-05-30, the commit eurorack pins) | MIT, © 2012–2014 Emilie Gillet | DSP helpers for Clouds |
 
 Notes:
@@ -38,8 +39,14 @@ Notes:
     floats), input and output (`GranularProcessor::Process` takes and gives `FloatFrame`, with
     the module's soft limiter kept), the reverb and the pitch shifter (`fx/reverb.h`,
     `fx/pitch_shifter.h`: `FORMAT_32_BIT` instead of 12 and 16 bits; the pitch shifter in its
-    own memory). The 16-bit buffer truncated every sample towards zero. The low-fidelity mode
-    (8-bit mu-law, half rate) is still in the code and never used.
+    own memory), and the spectral mode's analysis/synthesis buffers (`pvoc/stft.*`,
+    `pvoc/phase_vocoder.cc`: floats instead of 16-bit overlap-add with clipping). The 16-bit
+    buffer truncated every sample towards zero. The low-fidelity mode (8-bit mu-law, half rate)
+    is still in the code and never used; the spectral mode's magnitude quantization (its texture
+    setting below 0.48) is not used by any Mode.
+  - Clouds, `clouds/dsp/window.h`: `Window::Start()` now marks the window as playing. `Init()`
+    marks windows done and nothing cleared it, so the stretch mode (WSOLA) stayed silent: -72 dB
+    against its input, also in the original 16-bit code (measured).
   Together these were the white noise Henrik heard when playing softly: the sky's feedback loop
   kept the rounding alive (measured: 6-28 dB of hiss in the treble, tails lost below -90 dBFS;
   after: the same tail at any level, the engine's own noise at -140 dBFS).

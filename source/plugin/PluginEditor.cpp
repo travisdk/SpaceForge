@@ -77,6 +77,26 @@ SpaceForgeEditor::SpaceForgeEditor (SpaceForgeProcessor& p)
     mixValue.setFont (theme::font (13.0f));
     freezeValue.setFont (theme::font (13.0f));
 
+    // The Modes: one choice, always visible; the description on hovering. Clicking sets the
+    // parameter (the DAW sees it); the buttons follow the parameter in timerCallback.
+    for (int m = 0; m < dsp::kNumModes; ++m)
+    {
+        const auto& setup = dsp::modeSetup (m);
+        auto button = std::make_unique<juce::TextButton> (setup.name);
+        button->setTooltip (juce::String (setup.name) + ": " + utf8 (setup.description));
+        button->setClickingTogglesState (false);
+        button->setColour (juce::TextButton::buttonOnColourId, theme::glow.withAlpha (0.22f));
+        button->setColour (juce::TextButton::textColourOnId, theme::glow);
+        button->setConnectedEdges ((m > 0 ? juce::Button::ConnectedOnLeft : 0) | (m < dsp::kNumModes - 1 ? juce::Button::ConnectedOnRight : 0));
+        button->onClick = [this, m] {
+            if (auto* param = processor.parameters().getParameter (plugin::kModeId))
+                param->setValueNotifyingHost (param->convertTo0to1 ((float) m));
+            timerCallback();
+        };
+        content.addAndMakeVisible (*button);
+        modeButtons[(size_t) m] = std::move (button);
+    }
+
     logo.setText ("S P A C E F O R G E   2", juce::dontSendNotification);
     logo.setFont (theme::font (15.0f, true));
     logo.setColour (juce::Label::textColourId, theme::glow);
@@ -103,11 +123,14 @@ void SpaceForgeEditor::timerCallback()
     const auto& apvts = processor.parameters();
     const float space = valueOf (apvts, plugin::kSpaceId), echo = valueOf (apvts, plugin::kEchoId);
     const float motion = valueOf (apvts, plugin::kMotionId), tone = valueOf (apvts, plugin::kToneId);
-    macros[0]->setValueText (utf8 (dsp::describeSpace (space)));
+    const int mode = shownMode();
+    for (int m = 0; m < dsp::kNumModes; ++m)
+        modeButtons[(size_t) m]->setToggleState (m == mode, juce::dontSendNotification);
+    macros[0]->setValueText (utf8 (dsp::describeSpace (space, mode)));
     macros[1]->setValueText (utf8 (dsp::describeEcho (echo)));
 
     // Motion: the scale, and the auto-pan's cycle under it
-    const auto s = dsp::mapMacros ({ space, echo, motion, tone });
+    const auto s = dsp::mapMacros ({ space, echo, motion, tone, mode });
     juce::String pan = "ingen pan";
     if (s.motionPanDepth > 0.0)
         pan = s.motionPanBars == 0 ? utf8 ("pan ½ takt") : "pan " + juce::String (s.motionPanBars) + (s.motionPanBars == 1 ? " takt" : " takter");
@@ -120,6 +143,12 @@ void SpaceForgeEditor::timerCallback()
     freezeValue.setColour (juce::Label::textColourId, frozen ? theme::ice : theme::dimText);
 }
 
+int SpaceForgeEditor::shownMode() const
+{
+    const float v = valueOf (processor.parameters(), plugin::kModeId);
+    return std::isfinite (v) ? std::clamp ((int) std::lround (v), 0, dsp::kNumModes - 1) : 0;
+}
+
 CloudView::State SpaceForgeEditor::cloudState() const
 {
     const auto& apvts = processor.parameters();
@@ -128,7 +157,7 @@ CloudView::State SpaceForgeEditor::cloudState() const
     st.echo = valueOf (apvts, plugin::kEchoId);
     st.motion = valueOf (apvts, plugin::kMotionId);
     st.tone = valueOf (apvts, plugin::kToneId);
-    const auto s = dsp::mapMacros ({ st.space, st.echo, st.motion, st.tone });
+    const auto s = dsp::mapMacros ({ st.space, st.echo, st.motion, st.tone, shownMode() });
     st.feedback = (float) s.echoFeedback;
     st.repeats = s.echoSend > 0.0 ? dsp::echoRepeats (s.echoFeedback) : 0;
     st.echoSeconds = (float) (dsp::kEchoBeats * 60.0 / processor.getBpm());
@@ -150,7 +179,12 @@ void SpaceForgeEditor::resized()
     content.setBounds (0, 0, kWidth, kHeight);
     auto area = content.getLocalBounds().reduced (16);
 
-    logo.setBounds (area.removeFromTop (kHeaderHeight).withTrimmedLeft (2));
+    auto header = area.removeFromTop (kHeaderHeight);
+    logo.setBounds (header.removeFromLeft (230).withTrimmedLeft (2));
+    auto modes = header.withSizeKeepingCentre (header.getWidth(), 26);
+    const int modeWidth = modes.getWidth() / dsp::kNumModes;
+    for (auto& button : modeButtons)
+        button->setBounds (modes.removeFromLeft (modeWidth));
 
     // footer: Mix and Freeze side by side in the middle
     auto footer = area.removeFromBottom (kFooterHeight).withSizeKeepingCentre (320, kFooterHeight);

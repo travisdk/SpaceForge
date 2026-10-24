@@ -57,6 +57,11 @@ NoiseBaseline noiseBaseline (const Stereo& tail, size_t from, size_t to, double 
 // out and only real changes (scattered fragments, other colour) remain. 0 = identical.
 double spectroTemporalDifferenceDb (const Stereo& a, const Stereo& b, double sampleRate, size_t from, size_t to);
 
+// How much a tail moves: in octave bands 250 Hz..4 kHz, frames of ~43 ms, each band's level
+// with its straight decay line (dB against time) taken out; the RMS of what is left, averaged
+// over the bands (dB). 0 = a perfectly even decay; modulation, beating and grains raise it.
+double tailMovementDb (const Stereo& s, double sampleRate, size_t from, size_t to);
+
 // How strongly a sound comes back as a copy (an echo, a grain): the largest normalised
 // correlation between `original` (the sound alone) and the output, at delays between minLag and
 // maxLag seconds after `start`. 1 = an exact copy, a diffuse tail stays far lower.

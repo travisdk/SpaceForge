@@ -95,7 +95,6 @@ void TextureEngine::reset()
     p->Init (largeBuffer.data(), largeBuffer.size(), smallBuffer.data(), smallBuffer.size());
     p->set_num_channels (2);
     p->set_low_fidelity (false);
-    p->set_playback_mode (clouds::PLAYBACK_MODE_GRANULAR);
     applyVoicing();
     appliedGain = outputGain;
     p->Prepare();
@@ -123,7 +122,9 @@ void TextureEngine::applyVoicing()
     const auto& v = currentVoicing;
     p->position = setting (v.position);
     p->size = setting (v.size);
-    p->pitch = 0.0f;
+    // A new mode takes effect at the next Prepare(): Clouds stays silent for that one block.
+    processor->set_playback_mode ((clouds::PlaybackMode) std::clamp (v.playbackMode, 0, (int) clouds::PLAYBACK_MODE_SPECTRAL));
+    p->pitch = std::isfinite (v.pitchSemitones) ? (float) std::clamp (v.pitchSemitones, -24.0, 24.0) : 0.0f;
     p->density = setting (v.density);
     p->texture = setting (v.texture);
     p->dry_wet = kWetOnly;

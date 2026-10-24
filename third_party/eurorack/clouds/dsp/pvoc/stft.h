@@ -66,7 +66,7 @@ class STFT {
       float* fft_buffer,
       float* ifft_buffer,
       const float* window_lut,
-      short* stft_frame_processor_buffer,
+      float* stft_frame_processor_buffer, // SpaceForge 2: floats (was short)
       Modifier* modifier);
 
   void Reset();
@@ -94,8 +94,9 @@ class STFT {
   const float* window_;
   size_t window_stride_;
 
-  short* analysis_;
-  short* synthesis_;
+  // SpaceForge 2: floats on the module's 16-bit scale, nothing rounded or clipped.
+  float* analysis_;
+  float* synthesis_;
   
   size_t buffer_ptr_;
   size_t process_ptr_;

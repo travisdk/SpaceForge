@@ -17,13 +17,17 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <functional>
+#include <xmmintrin.h>
 #include <filesystem>
 #include <map>
 #include <memory>
 #include <string>
 #include "analysis/Character.h"
+#include "analysis/Measure.h"
 #include "analysis/Render.h"
 #include "analysis/Wav.h"
+#include "dsp/Modes.h"
 #include "plugin/Defaults.h"
 
 using namespace spaceforge;
@@ -203,6 +207,197 @@ void calibrate (const dsp::SpaceVoicing& voicing)
     }
 }
 
+// An engine in one Mode (its voicing changed by `adjust`, for calibrating).
+std::unique_ptr<dsp::SpaceEngine> makeModeEngine (int mode, dsp::MacroPositions macros, const std::function<void (dsp::SpaceVoicing&)>& adjust = {})
+{
+    std::srand (1);
+    auto engine = std::make_unique<dsp::SpaceEngine>();
+    macros.mode = mode;
+    engine->setMacros (macros);
+    engine->prepare (kRate);
+    if (adjust)
+    {
+        auto v = engine->voicing();
+        adjust (v);
+        engine->setVoicing (v);
+        engine->reset();
+    }
+    engine->setTempo (analysis::kTestBpm, true, 0.0);
+    return engine;
+}
+
+// T60 at 1 kHz of a noise burst (the sky's tail depends on the level; a click is far softer
+// than music), with `tail` seconds after it.
+double burstT60 (dsp::SpaceEngine& engine, double tail)
+{
+    const auto ir = analysis::render (engine, analysis::makeNoiseBurst (kRate, tail).audio, kRate);
+    return analysis::reverbTimePerOctave (ir, kRate)[3];
+}
+
+std::string row (const std::array<double, 11>& values)
+{
+    std::string text = "{";
+    for (size_t i = 0; i < values.size(); ++i)
+    {
+        char number[32];
+        std::snprintf (number, sizeof (number), " %.2f%s", values[i], i + 1 < values.size() ? "," : " }");
+        text += number;
+    }
+    return text;
+}
+
+// One Mode, in two passes (each needs the tables the one before wrote; tools/modes/apply_calibration.py
+// puts the lines starting with "TABLE" into source/dsp/ModeTables.h).
+//   pass 1: Clouds' level, and Space at 50 %: a medium room (T60 12 s, Henrik's rule).
+//   pass 2: the Mode's level at Init, each knob's level compensation, the Space text's T60s.
+//   pass 3: pass 2 without the T60s (levels only).
+void calibrateMode (int mode, int pass)
+{
+    namespace cal = dsp::calibrated;
+    const auto m = (size_t) mode;
+    const auto& setup = dsp::modeSetup (mode);
+    const auto pink = analysis::makePinkNoise (kRate, 12.0, 0.125f, 3);
+    const auto from = (size_t) (6.0 * kRate);
+    std::printf ("Mode %d (%s), pass %d\n", mode, setup.name, pass);
+
+    if (pass == 1)
+    {
+        // Clouds' grains as loud as what goes in (steady pink noise)
+        dsp::TextureEngine texture;
+        texture.prepare (kRate);
+        auto tv = dsp::modeVoicing (mode).texture;
+        texture.setVoicing (tv);
+        texture.reset();
+        analysis::Stereo grains { std::vector<float> (pink.size()), std::vector<float> (pink.size()) };
+        for (size_t pos = 0; pos + 256 <= pink.size(); pos += 256)
+            texture.process (&pink.l[pos], &pink.r[pos], &grains.l[pos], &grains.r[pos], 256);
+        const double textureGain = tv.gainDb - (analysis::rmsDb (grains, from, pink.size()) - analysis::rmsDb (pink, from, pink.size()));
+        std::printf ("TABLE kTextureGainDb %d %.2f\n", mode, textureGain);
+
+        // Space at 50 %: the sky's feed or the room's decay, whichever carries this Mode's tail
+        constexpr double target = 12.0;
+        double lo = setup.skyCarries ? -45.0 : std::log (0.2);
+        double hi = setup.skyCarries ? 0.0 : std::log (60.0);
+        double decay = cal::kDecayHalfSeconds[m], feed = cal::kSkyFeedHalfDb[m], t60 = 0.0;
+        for (int step = 0; step < 9; ++step)
+        {
+            const double mid = 0.5 * (lo + hi);
+            (setup.skyCarries ? feed : decay) = setup.skyCarries ? mid : std::exp (mid);
+            dsp::setSpaceCalibrationOverride (mode, decay, feed);
+            dsp::MacroPositions p;
+            p.space = 0.5f;
+            auto engine = makeModeEngine (mode, p, [textureGain] (dsp::SpaceVoicing& v) { v.texture.gainDb = textureGain; });
+            t60 = burstT60 (*engine, 40.0);
+            (t60 < target ? lo : hi) = mid;
+            std::printf ("  decay %.2f s, sky %.1f dB: T60 %.2f s\n", decay, feed, t60);
+            std::fflush (stdout);
+        }
+        std::printf ("TABLE kDecayHalfSeconds %d %.3f\nTABLE kSkyFeedHalfDb %d %.2f\n", mode, decay, mode, feed);
+        return;
+    }
+
+    // pass 2: levels (pink noise) against the dry signal, the current tables applied
+    auto level = [&] (const dsp::MacroPositions& p) {
+        auto engine = makeModeEngine (mode, p);
+        return wetLevel (*engine, pink);
+    };
+    const double init = level ({});
+    std::printf ("TABLE kModeGainDb %d %.2f\n", mode, cal::kModeGainDb[m] - init);
+    const std::array<const std::array<std::array<double, 11>, dsp::kNumModes>*, 4> tables { &cal::kSpaceGainDb, &cal::kEchoGainDb,
+                                                                                         &cal::kMotionGainDb, &cal::kToneGainDb };
+    const char* tableNames[] = { "kSpaceGainDb", "kEchoGainDb", "kMotionGainDb", "kToneGainDb" };
+    for (int k = 0; k < 4; ++k)
+    {
+        std::array<double, 11> suggestion {};
+        for (int i = 0; i <= 10; ++i)
+        {
+            dsp::MacroPositions p;
+            *macroField (p, kMacroNames[k]) = (float) i / 10.0f;
+            suggestion[(size_t) i] = (*tables[(size_t) k])[m][(size_t) i] - (level (p) - init);
+        }
+        std::printf ("TABLE %s %d %s\n", tableNames[k], mode, row (suggestion).c_str());
+        std::fflush (stdout);
+    }
+    if (pass == 3)
+        return; // levels only
+    std::array<double, 11> t60 {};
+    for (int i = 0; i <= 10; ++i)
+    {
+        dsp::MacroPositions p;
+        p.space = (float) i / 10.0f;
+        auto engine = makeModeEngine (mode, p);
+        t60[(size_t) i] = burstT60 (*engine, 90.0);
+        std::fflush (stdout);
+    }
+    std::printf ("TABLE kSpaceMeasuredT60 %d %s\n", mode, row (t60).c_str());
+}
+
+// Every Mode with the same knobs (Space 50 %, Echo 0, Motion 50 %, Tone 50 %): how long, how
+// bright, how much movement, how quickly dense, how different from each other, and short renders
+// to listen to in <outDir> (mix 40 %, all at the same level).
+void modesReport (const std::string& outDir)
+{
+    std::filesystem::create_directories (outDir);
+    const auto pad = analysis::makePad (kRate, 12.0).audio;
+    const auto pink = analysis::makePinkNoise (kRate, 12.0, 0.125f, 3);
+    std::vector<analysis::Stereo> pads;
+    std::printf ("Modes ved Space 50 %%, Echo 0, Motion 50 %%, Tone 50 %%:\n\n");
+    std::printf ("  %-9s %9s %12s %13s %11s %10s %9s\n", "Mode", "T60 1 kHz", "diskant/mel.", "tyngdepunkt", "bevægelse", "tæt efter", "niveau");
+    for (int mode = 0; mode < dsp::kNumModes; ++mode)
+    {
+        dsp::MacroPositions p;
+        p.space = 0.5f;
+        p.motion = 0.5f;
+        p.tone = 0.5f;
+        auto engine = makeModeEngine (mode, p);
+        const auto ir = analysis::render (*engine, analysis::makeNoiseBurst (kRate, 40.0).audio, kRate);
+        const auto t = analysis::reverbTimePerOctave (ir, kRate);
+        const auto wet = analysis::render (*engine, pad, kRate);
+        const double centroid = analysis::spectralCentroid (wet, kRate, (size_t) (4.0 * kRate), (size_t) (9.0 * kRate));
+        const double movement = analysis::tailMovementDb (wet, kRate, (size_t) (4.0 * kRate), (size_t) (12.0 * kRate));
+        const double dense = analysis::densityTimeMs (ir, kRate);
+        const double level = wetLevel (*engine, pink);
+        std::printf ("  %-9s %7.1f s %10.2f x %10.0f Hz %8.2f dB %7.0f ms %+7.1f dB\n", dsp::modeSetup (mode).name, t[3], t[5] / t[3], centroid, movement,
+                     dense, level);
+        std::fflush (stdout);
+        pads.push_back (wet);
+
+        // to listen to
+        char prefix[64];
+        std::snprintf (prefix, sizeof (prefix), "%s/%d_%s_", outDir.c_str(), mode + 1, dsp::modeSetup (mode).name);
+        analysis::RenderOptions mixed;
+        mixed.mix = plugin::kDefaultMix;
+        analysis::writeWav (std::string (prefix) + "pad.wav", analysis::render (*engine, analysis::makePad (kRate, 10.0).audio, kRate, mixed), kRate);
+        analysis::writeWav (std::string (prefix) + "bleeps.wav", analysis::render (*engine, analysis::makeBleeps (kRate, 10.0).audio, kRate, mixed), kRate);
+        analysis::writeWav (std::string (prefix) + "figur.wav", analysis::render (*engine, analysis::makeSynthFigure (kRate, 10.0).audio, kRate, mixed), kRate);
+    }
+
+    // How different: the pad's tail, band by band over time (dB), each Mode against each other.
+    // For scale: the same Mode with another random start.
+    std::srand (99);
+    dsp::MacroPositions p;
+    p.space = 0.5f;
+    auto other = std::make_unique<dsp::SpaceEngine>();
+    other->setMacros (p);
+    other->prepare (kRate);
+    const auto from = (size_t) (0.5 * kRate), to = (size_t) (12.0 * kRate);
+    std::printf ("\nForskel på pad'ens hale, dB (samme Mode med anden tilfældighed: %.1f dB):\n  %-9s", analysis::spectroTemporalDifferenceDb (analysis::render (*other, pad, kRate), pads[0], kRate, from, to), "");
+    for (int b = 0; b < dsp::kNumModes; ++b)
+        std::printf (" %8s", dsp::modeSetup (b).name);
+    std::printf ("\n");
+    for (int a = 0; a < dsp::kNumModes; ++a)
+    {
+        std::printf ("  %-9s", dsp::modeSetup (a).name);
+        for (int b = 0; b < dsp::kNumModes; ++b)
+            if (b <= a)
+                std::printf (" %8s", "");
+            else
+                std::printf (" %8.1f", analysis::spectroTemporalDifferenceDb (pads[(size_t) a], pads[(size_t) b], kRate, from, to));
+        std::printf ("\n");
+    }
+    std::printf ("\nLydfiler i %s/: <nr>_<Mode>_pad/bleeps/figur.wav (mix 40 %%)\n", outDir.c_str());
+}
+
 void sweeps (const dsp::SpaceVoicing& voicing, const std::string& outDir)
 {
     // Each knob from left to right, the others at Init; the sounds that show that knob best.
@@ -234,6 +429,8 @@ int main (int argc, char** argv)
 {
     std::string outDir = "renders";
     bool writeFiles = true, table = false, calibration = false, sweep = false;
+    int calibrateModeIndex = -1, calibratePass = 1;
+    bool modes = false;
     dsp::SpaceVoicing voicing;
     dsp::MacroPositions macros;
     for (int i = 1; i < argc; ++i)
@@ -246,6 +443,15 @@ int main (int argc, char** argv)
             table = true;
         else if (std::strcmp (argv[i], "--calibrate") == 0)
             calibration = true;
+        else if (std::strcmp (argv[i], "--calibrate-mode") == 0 && i + 2 < argc)
+        {
+            calibrateModeIndex = std::atoi (argv[++i]);
+            calibratePass = std::atoi (argv[++i]);
+        }
+        else if (std::strcmp (argv[i], "--mode") == 0 && i + 1 < argc)
+            macros.mode = std::clamp (std::atoi (argv[++i]), 0, dsp::kNumModes - 1);
+        else if (std::strcmp (argv[i], "--modes") == 0)
+            modes = true;
         else if (std::strcmp (argv[i], "--sweeps") == 0)
             sweep = true;
         else if (std::strcmp (argv[i], "--set") == 0 && i + 1 < argc && applySetting (voicing, argv[i + 1]))
@@ -254,11 +460,17 @@ int main (int argc, char** argv)
             ++i;
         else
         {
-            std::fprintf (stderr, "usage: sf2_render [--out DIR] [--no-wav] [--macro name=value ...] [--set name=value ...]\n"
-                                  "       sf2_render --table | --calibrate | --sweeps\n");
+            std::fprintf (stderr, "usage: sf2_render [--out DIR] [--no-wav] [--mode N] [--macro name=value ...] [--set name=value ...]\n"
+                                  "       sf2_render --table | --calibrate | --sweeps | --modes | --calibrate-mode N PASS\n");
             return 2;
         }
     }
+    // As in the plug-in (juce::ScopedNoDenormals): tiny numbers are flushed to zero.
+    _mm_setcsr (_mm_getcsr() | 0x8040u); // flush-to-zero and denormals-are-zero
+    if (calibrateModeIndex >= 0)
+        return calibrateMode (std::clamp (calibrateModeIndex, 0, dsp::kNumModes - 1), calibratePass), 0;
+    if (modes)
+        return modesReport (outDir + "/modes"), 0;
     if (table)
         return printTable(), 0;
     if (calibration)

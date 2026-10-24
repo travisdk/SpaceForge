@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "dsp/ModeTables.h"
 #include "dsp/TextureEngine.h"
 
 namespace spaceforge::dsp
@@ -16,7 +17,7 @@ struct SpaceVoicing
     // note's attack: Henrik heard that as an echo on his bleeps, phase 4), and part of the
     // grains go back into the room, so the cloud keeps itself alive (how much belongs to Space).
     // Long soft grains from half a second back. Chosen by Henrik by ear (variant C).
-    TextureVoicing texture { 0.5, 0.7, 0.8, 0.8, 0.7, 0.4, 1.5 };
+    TextureVoicing texture { 0.5, 0.7, 0.8, 0.8, 0.7, 0.4, calibrated::kTextureGainDb[0] };
     // Above this level (RMS of the room's output) less of the grains go back, so the cloud can
     // hold itself but never grow (with Space high it otherwise grew without end; measured).
     double skyLimitDb = -18.0;
@@ -28,7 +29,14 @@ struct SpaceVoicing
     double crossFeed = 0.2;        // 0..1, how much of each input side reaches the other
     double inputLowCutHz = 110.0;
 
+    // Early reflections (Cloud Seed's multitap): off unless a Mode uses them.
+    bool tapsEnabled = false;
+    int tapCount = 1;
+    double tapLengthMs = 10.0;
+    double tapDecay = 1.0;         // 0..1, how much later taps fade
+
     // Early diffusion: smears attacks into a soft cloud before the room starts.
+    bool earlyEnabled = true;
     int earlyStages = 6;
     double earlyFeedback = 0.7;
     double earlyModMs = 0.6;       // Cloud Seed only modulates above 0.5 ms
@@ -42,6 +50,7 @@ struct SpaceVoicing
     // The late room: 12 recirculating delay lines, each with its own diffuser and damping.
     int lineCount = 12;
     double lineSizeMs = 180.0;     // each line is 0.5..1.5 times this
+    bool lateEnabled = true;
     int lateStages = 4;
     double lateDiffuseDelayMs = 50.0;
     double lateDiffuseFeedback = 0.7;
@@ -60,7 +69,7 @@ struct SpaceVoicing
     // Below this the wet signal is mono (both sides the same).
     double monoBassHz = 150.0;
     // Makes the wet signal as loud as the dry for steady material at Init (calibrated with pink
-    // noise); each knob's own compensation comes on top.
-    double wetGainDb = -2.16;
+    // noise, per Mode; these defaults are Sky's); each knob's own compensation comes on top.
+    double wetGainDb = calibrated::kModeGainDb[0];
 };
 } // namespace spaceforge::dsp

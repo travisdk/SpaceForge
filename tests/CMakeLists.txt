@@ -28,6 +28,12 @@ target_link_libraries(test_macros PRIVATE spaceforge_analysis juce::juce_recomme
 add_test(NAME macros COMMAND test_macros)
 add_dependencies(SpaceForge_Tests test_macros)
 
+# The Modes: a medium room at Space 50 %, equal levels, no hiss, knobs in every Mode, clean switch.
+add_executable(test_modes test_modes.cpp)
+target_link_libraries(test_modes PRIVATE spaceforge_analysis juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)
+add_test(NAME modes COMMAND test_modes)
+add_dependencies(SpaceForge_Tests test_modes)
+
 # The plug-in as a host drives it.
 add_executable(test_plugin test_plugin.cpp)
 target_include_directories(test_plugin PRIVATE ${PROJECT_SOURCE_DIR}/source $<TARGET_PROPERTY:SpaceForge2,INCLUDE_DIRECTORIES>)

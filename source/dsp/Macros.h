@@ -8,13 +8,15 @@
 
 namespace spaceforge::dsp
 {
-// The four macro knobs, 0..1 each. Fixed roles, fixed direction (right is always "more") and one
-// absolute scale: a knob position always means the same sound, whatever the preset.
+// The four macro knobs, 0..1 each, and the Mode (dsp/Modes.h). Fixed roles, fixed direction
+// (right is always "more") in every Mode, and within a Mode one absolute scale: a knob position
+// always means the same sound, whatever the preset. Only the Mode sets Space's range.
 struct MacroPositions
 {
-    // Init: the sound Henrik approved in phases 2 and 3.
-    static constexpr float kInitSpace = 0.6f, kInitEcho = 0.0f, kInitMotion = 0.5f, kInitTone = 0.5f;
+    // Init: the sound Henrik approved (Sky, variant C; Space where its tail is as long as then).
+    static constexpr float kInitSpace = 0.95f, kInitEcho = 0.0f, kInitMotion = 0.5f, kInitTone = 0.5f;
     float space = kInitSpace, echo = kInitEcho, motion = kInitMotion, tone = kInitTone;
+    int mode = 0;
 };
 
 // Every internal value the macros move. Each is owned by exactly one knob (the prefix says which).
@@ -53,8 +55,12 @@ struct MacroSettings
 
 MacroSettings mapMacros (const MacroPositions& p);
 
+// Offline calibration only (`sf2_render --calibrate-modes`), never the plug-in: replaces one
+// Mode's calibrated Space values at 50 % (decay setting in s, sky feed in dB). mode < 0 clears.
+void setSpaceCalibrationOverride (int mode, double decayHalfSeconds, double skyFeedHalfDb);
+
 // The knob's value in words and real units, for the UI and the DAW (the same text in both).
-std::string describeSpace (float position);
+std::string describeSpace (float position, int mode = 0);
 std::string describeEcho (float position);
 std::string describeMotion (float position);
 std::string describeTone (float position);
@@ -63,7 +69,4 @@ std::string describeTone (float position);
 inline constexpr double kEchoBeats = 0.75;
 int echoRepeats (double feedback);
 
-// Measured T60 at 1 kHz for Space at 0, 0.1, ..., 1.0 (with the other knobs at Init), so the
-// Space text shows what the room really does. Filled in by `sf2_render --calibrate`.
-extern const std::array<double, 11> kSpaceMeasuredT60;
 } // namespace spaceforge::dsp
