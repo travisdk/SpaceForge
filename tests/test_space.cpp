@@ -174,10 +174,13 @@ void testNoAllocations()
     {
         engine->setMix ((float) (pos % 3000) / 3000.0f);
         engine->setFreeze ((pos / 48000) % 2 == 1);
+        const auto x = (float) (pos % 7000) / 7000.0f;
+        engine->setMacros ({ x, 1.0f - x, x, 0.5f * x });
+        engine->setTempo (90.0 + 60.0 * x, pos % 2 == 0, (double) pos / 24000.0);
         engine->process (&pad.l[pos], &pad.r[pos], &out.l[pos], &out.r[pos], 256);
     }
     countAllocations = false;
-    std::printf ("Allocations while processing (with Mix and Freeze moving): %d\n", allocations.load());
+    std::printf ("Allocations while processing (with every knob, Freeze and the tempo moving): %d\n", allocations.load());
     CHECK (allocations.load() == 0);
 }
 } // namespace

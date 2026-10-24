@@ -28,6 +28,7 @@ constexpr double kTestBpm = 125.0;
 // tailSeconds of silence follow each sound.
 TestSignal makeImpulse (double sampleRate, double tailSeconds);
 TestSignal makeClick (double sampleRate, double tailSeconds);
+TestSignal makeBleeps (double sampleRate, double tailSeconds);
 TestSignal makeNoiseBurst (double sampleRate, double tailSeconds);
 TestSignal makePad (double sampleRate, double tailSeconds);
 TestSignal makeSynthFigure (double sampleRate, double tailSeconds);

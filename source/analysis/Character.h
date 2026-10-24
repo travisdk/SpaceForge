@@ -28,7 +28,7 @@ struct Character
     double freezeDriftDb = 0;                         // level change over 10 s frozen
     double freezeLeakDb = 0;                          // new input while frozen, against the frozen sound
     double lineModCents = 0, diffuseModCents = 0;
-    double textureLevelDb = 0;                        // grains alone against input alone, into the room
+    double textureLevelDb = 0;                        // wet level with grains against without
     double textureChangeDb = 0;                       // how much the grains change the synth figure in the room
     double randomChangeDb = 0;                        // the same between two rooms with other random detail
     int textureUnderruns = 0;

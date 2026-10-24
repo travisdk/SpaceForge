@@ -18,8 +18,12 @@ namespace spaceforge::dsp
 // The settings of Clouds' granular mode (all 0..1, Clouds' own scales).
 struct TextureVoicing
 {
-    double position = 0.35;     // how far back in the last second the grains are taken from
-    double size = 0.6;          // grain length
+    // Grains replay what was just played. Taken from further back (position) or longer (size),
+    // every grain of a short note replays the same moment some 0.2-0.4 s later: an audible echo
+    // (Henrik heard it with Echo at 0, phase 4). Taken from now and about 45 ms long, the
+    // copies fall within ~50 ms of the note and fuse with it.
+    double position = 0.0;      // how far back in the last second the grains are taken from
+    double size = 0.13;         // grain length (Clouds' scale: 0 = 32 ms, 0.13 = 45 ms, 1 = 512 ms)
     double density = 0.75;      // above 0.5: grains at random times, more the higher
     double texture = 0.7;       // grain window shape (soft); above 0.75 adds diffusion
     double stereoSpread = 0.7;
@@ -63,7 +67,7 @@ private:
     std::unique_ptr<clouds::GranularProcessor, ProcessorDeleter> processor;
     std::vector<uint8_t> largeBuffer, smallBuffer;
     TextureVoicing currentVoicing;
-    float outputGain = 1.0f;
+    float outputGain = 1.0f, appliedGain = 1.0f;
 
     Resampler down, up;
     static constexpr int kBlock = 32; // Clouds' block size

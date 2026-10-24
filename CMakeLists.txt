@@ -81,7 +81,9 @@ set_target_properties(clouds PROPERTIES POSITION_INDEPENDENT_CODE ON)
 # SpaceForge 2's own sound engine (no JUCE): shared by the plug-in, the render tool and the tests.
 add_library(spaceforge_dsp STATIC
     source/dsp/SpaceEngine.cpp
-    source/dsp/TextureEngine.cpp)
+    source/dsp/TextureEngine.cpp
+    source/dsp/EchoEngine.cpp
+    source/dsp/Macros.cpp)
 target_include_directories(spaceforge_dsp PUBLIC source)
 target_link_libraries(spaceforge_dsp
     PUBLIC cloudseed clouds

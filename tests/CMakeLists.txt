@@ -22,6 +22,12 @@ target_link_libraries(test_texture PRIVATE spaceforge_analysis juce::juce_recomm
 add_test(NAME texture COMMAND test_texture)
 add_dependencies(SpaceForge_Tests test_texture)
 
+# The macro contract: direction, audible effect, level, real-unit texts, no clicks.
+add_executable(test_macros test_macros.cpp)
+target_link_libraries(test_macros PRIVATE spaceforge_analysis juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)
+add_test(NAME macros COMMAND test_macros)
+add_dependencies(SpaceForge_Tests test_macros)
+
 # The plug-in as a host drives it.
 add_executable(test_plugin test_plugin.cpp)
 target_include_directories(test_plugin PRIVATE ${PROJECT_SOURCE_DIR}/source $<TARGET_PROPERTY:SpaceForge2,INCLUDE_DIRECTORIES>)

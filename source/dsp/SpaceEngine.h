@@ -5,6 +5,8 @@
 
 #include <array>
 #include <memory>
+#include "dsp/EchoEngine.h"
+#include "dsp/Macros.h"
 #include "dsp/SpaceVoicing.h"
 #include "dsp/TextureEngine.h"
 
@@ -15,17 +17,18 @@ class ReverbChannel;
 
 namespace spaceforge::dsp
 {
-// The sound engine: granular texture (Clouds) into the room (Cloud Seed's two reverb channels),
-// plus everything around them that a plug-in needs.
-// No JUCE, so the offline render tool and the tests use exactly what the plug-in runs.
+// The sound engine: granular texture (Clouds) and tempo-synced echoes into the room (Cloud
+// Seed's two reverb channels), plus everything around them that a plug-in needs. No JUCE, so the
+// offline render tool and the tests use exactly what the plug-in runs.
 //
 // - Cloud Seed's feedback loops are delayed by one processing block, so its sound would change
 //   with the host's buffer size. Here it always runs in fixed chunks of ~2.7 ms; the wet signal
 //   is that much late (it acts as a little extra pre-delay), the dry signal is not delayed.
+// - The four macros move the sound; their positions are smoothed (no clicks from a jump).
 // - Freeze stops new input entering the room and holds what is in it.
 // - The wet signal is mono below SpaceVoicing::monoBassHz.
 //
-// prepare() and setVoicing() may allocate; process(), setMix() and setFreeze() never do.
+// prepare() and setVoicing() may allocate; process() and the setters never do.
 class SpaceEngine
 {
 public:
@@ -41,6 +44,12 @@ public:
 
     void setMix (float mix01) { mixTarget = mix01; }
     void setFreeze (bool on) { freezeTarget = on; }
+    void setMacros (const MacroPositions& positions) { macroTarget = positions; }
+    const MacroPositions& macros() const { return macroTarget; }
+
+    // Host tempo for the echo and the auto-pan. Without a running transport the pan runs freely
+    // at the last known tempo (120 BPM if none), so it can always be heard.
+    void setTempo (double bpm, bool playing, double ppqPosition);
 
     // Any block size; outL/outR may be the same buffers as inL/inR.
     void process (const float* inL, const float* inR, float* outL, float* outR, int numSamples);
@@ -57,6 +66,7 @@ public:
 
 private:
     void applyVoicing();
+    void applySettings (const MacroSettings& s, bool force);
     void applyFreeze (bool on);
     void processChunk();
 
@@ -67,8 +77,10 @@ private:
     int pos = 0;
 
     TextureEngine texture;
-    // Per chunk: the dry input, its gain into the room (Freeze), the grains, the room's output.
-    std::array<float, kMaxChunk> inL {}, inR {}, inGain {}, grainsL {}, grainsR {}, wetL {}, wetR {};
+    EchoEngine echo;
+    // Per chunk: the dry input, its gain into the room (Freeze), the grains, the echoes, the
+    // room's output.
+    std::array<float, kMaxChunk> inL {}, inR {}, inGain {}, grainsL {}, grainsR {}, echoL {}, echoR {}, wetL {}, wetR {};
 
     // High-pass on the wet side signal, two second-order stages (makes the bass mono).
     struct HighPass
@@ -78,9 +90,25 @@ private:
         float process (float x);
     } sideHighPass[2];
 
+    MacroPositions macroTarget, macroNow;
+    MacroSettings settings;   // what is applied now
+    float macroCoeff = 0.0f;  // per chunk
+
     float mixTarget = 0.4f, mixNow = 0.4f, mixCoeff = 0.0f;
     bool freezeTarget = false, frozen = false;
     float inputGain = 1.0f, inputGainStep = 0.0f;
-    float wetGain = 1.0f;
+    float wetGain = 1.0f;     // voicing calibration and the knobs' level compensation together
+    // The gains applied in the last chunk (each chunk glides from these to the new ones).
+    struct Gains
+    {
+        float input = 0.0f, grains = 1.0f, send = 0.0f, direct = 0.0f, wet = 1.0f;
+    } gains;
+
+    // Tone's finish (treble shelf after the room).
+    float tiltCoeff = 0.0f, tiltGain = 0.0f, tiltLowL = 0.0f, tiltLowR = 0.0f;
+
+    // Auto-pan (Motion): position in quarter notes, advanced per sample.
+    double bpm = 120.0, ppq = 0.0;
+    float panL = 1.0f, panR = 1.0f, panCoeff = 0.0f;
 };
 } // namespace spaceforge::dsp

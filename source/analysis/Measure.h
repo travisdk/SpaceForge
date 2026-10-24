@@ -57,6 +57,11 @@ NoiseBaseline noiseBaseline (const Stereo& tail, size_t from, size_t to, double 
 // out and only real changes (scattered fragments, other colour) remain. 0 = identical.
 double spectroTemporalDifferenceDb (const Stereo& a, const Stereo& b, double sampleRate, size_t from, size_t to);
 
+// How strongly a sound comes back as a copy (an echo, a grain): the largest normalised
+// correlation between `original` (the sound alone) and the output, at delays between minLag and
+// maxLag seconds after `start`. 1 = an exact copy, a diffuse tail stays far lower.
+double copyStrength (const Stereo& out, const std::vector<float>& original, size_t start, double sampleRate, double minLag, double maxLag);
+
 // Pitch wobble from modulated delay lines, in cents (largest deviation of a sine-modulated delay).
 double modulationCents (double depthMs, double rateHz);
 } // namespace spaceforge::analysis

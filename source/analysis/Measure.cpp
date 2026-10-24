@@ -408,6 +408,47 @@ double spectroTemporalDifferenceDb (const Stereo& a, const Stereo& b, double sam
     return count > 0 ? total / (double) count : 0.0;
 }
 
+double copyStrength (const Stereo& out, const std::vector<float>& original, size_t start, double sampleRate, double minLag, double maxLag)
+{
+    const auto lo = (size_t) (minLag * sampleRate), hi = (size_t) (maxLag * sampleRate), n = original.size();
+    if (start + hi + n > out.size() || n == 0)
+        return 0.0;
+    std::vector<double> mono (hi + n);
+    for (size_t i = 0; i < mono.size(); ++i)
+        mono[i] = 0.5 * ((double) out.l[start + i] + out.r[start + i]);
+    size_t size = 1;
+    while (size < mono.size() + n)
+        size <<= 1;
+    std::vector<std::complex<double>> a (size), b (size);
+    for (size_t i = 0; i < mono.size(); ++i)
+        a[i] = mono[i];
+    for (size_t i = 0; i < n; ++i)
+        b[i] = original[i];
+    fft (a);
+    fft (b);
+    for (size_t k = 0; k < size; ++k)
+        a[k] *= std::conj (b[k]);
+    // Inverse via the forward transform of the conjugate.
+    for (auto& v : a)
+        v = std::conj (v);
+    fft (a);
+    double templateEnergy = 0.0;
+    for (const float v : original)
+        templateEnergy += (double) v * v;
+    std::vector<double> running (mono.size() + 1, 0.0);
+    for (size_t i = 0; i < mono.size(); ++i)
+        running[i + 1] = running[i] + mono[i] * mono[i];
+    double best = 0.0;
+    for (size_t lag = lo; lag <= hi; ++lag)
+    {
+        const double energy = running[lag + n] - running[lag];
+        if (energy <= 0.0)
+            continue;
+        best = std::max (best, std::abs (std::conj (a[lag]).real() / (double) size) / std::sqrt (templateEnergy * energy));
+    }
+    return best;
+}
+
 double modulationCents (double depthMs, double rateHz)
 {
     return 1200.0 * std::log2 (1.0 + 2.0 * kPi * rateHz * depthMs / 1000.0);

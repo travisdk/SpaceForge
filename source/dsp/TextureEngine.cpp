@@ -94,6 +94,7 @@ void TextureEngine::reset()
     p->set_low_fidelity (false);
     p->set_playback_mode (clouds::PLAYBACK_MODE_GRANULAR);
     applyVoicing();
+    appliedGain = outputGain;
     p->Prepare();
     stmlib::Random::Seed (0x5f2u);
 
@@ -142,10 +143,14 @@ void TextureEngine::runCloudsBlock()
     }
     processor->Process (input, output, (size_t) kBlock);
     processor->Prepare();
+    // The level glides across the block (Motion moves it).
+    const float from = appliedGain;
+    appliedGain = outputGain;
     for (int i = 0; i < kBlock; ++i)
     {
-        const float l = (float) output[i].l / 32768.0f * outputGain;
-        const float r = (float) output[i].r / 32768.0f * outputGain;
+        const float gain = from + (outputGain - from) * (float) (i + 1) / (float) kBlock;
+        const float l = (float) output[i].l / 32768.0f * gain;
+        const float r = (float) output[i].r / 32768.0f * gain;
         up.push (l, r, [this] (float outL, float outR) {
             fifoL[writePos & fifoMask] = outL;
             fifoR[writePos & fifoMask] = outR;

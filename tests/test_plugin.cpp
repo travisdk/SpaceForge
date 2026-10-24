@@ -77,9 +77,36 @@ void testProcessing (const juce::AudioChannelSet& input)
     }
 }
 
+void testTexts()
+{
+    // The DAW shows what the knobs do, in the same words as the plug-in.
+    SpaceForgeProcessor p;
+    auto text = [&p] (const char* id, float value) { return p.parameters().getParameter (id)->getText (value, 64); };
+    CHECK (text (plugin::kEchoId, 0.0f) == "intet ekko");
+    CHECK (text (plugin::kEchoId, 0.5f) == juce::String::fromUTF8 (dsp::describeEcho (0.5f).c_str()));
+    CHECK (text (plugin::kMotionId, 0.0f) == "stille");
+    CHECK (text (plugin::kSpaceId, 0.6f) == juce::String::fromUTF8 (dsp::describeSpace (0.6f).c_str()));
+    CHECK (text (plugin::kToneId, 0.0f).startsWith (juce::String::fromUTF8 ("m\u00f8rk")));
+
+    // Text back to a value lands where the same text is shown (the DAW's typed-in values).
+    for (const char* id : { plugin::kSpaceId, plugin::kEchoId, plugin::kMotionId, plugin::kToneId })
+    {
+        auto* param = p.parameters().getParameter (id);
+        for (int i = 0; i <= 20; ++i)
+        {
+            const auto shown = param->getText ((float) i / 20.0f, 64);
+            CHECK (param->getText (param->getValueForText (shown), 64) == shown);
+        }
+    }
+}
+
 void testStateRoundTrip()
 {
     SpaceForgeProcessor a;
+    setParam (a, plugin::kSpaceId, 0.21f);
+    setParam (a, plugin::kEchoId, 0.42f);
+    setParam (a, plugin::kMotionId, 0.63f);
+    setParam (a, plugin::kToneId, 0.84f);
     setParam (a, plugin::kMixId, 0.73f);
     setParam (a, plugin::kFreezeId, 1.0f);
     juce::MemoryBlock state;
@@ -88,6 +115,10 @@ void testStateRoundTrip()
     SpaceForgeProcessor b;
     b.setStateInformation (state.getData(), (int) state.getSize());
     CHECK_RANGE (paramValue (b, plugin::kMixId), 0.729, 0.731);
+    CHECK_RANGE (paramValue (b, plugin::kSpaceId), 0.209, 0.211);
+    CHECK_RANGE (paramValue (b, plugin::kEchoId), 0.419, 0.421);
+    CHECK_RANGE (paramValue (b, plugin::kMotionId), 0.629, 0.631);
+    CHECK_RANGE (paramValue (b, plugin::kToneId), 0.839, 0.841);
     CHECK (paramValue (b, plugin::kFreezeId) > 0.5f);
 }
 
@@ -136,6 +167,7 @@ int main()
     juce::ScopedJuceInitialiser_GUI juce;
     testProcessing (juce::AudioChannelSet::stereo());
     testProcessing (juce::AudioChannelSet::mono());
+    testTexts();
     testStateRoundTrip();
     testHostileState();
     return finish ("plugin");

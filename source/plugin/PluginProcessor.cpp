@@ -12,6 +12,10 @@ SpaceForgeProcessor::SpaceForgeProcessor()
                           .withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
       apvts (*this, nullptr, "PARAMS", createParameterLayout())
 {
+    spaceValue = apvts.getRawParameterValue (plugin::kSpaceId);
+    echoValue = apvts.getRawParameterValue (plugin::kEchoId);
+    motionValue = apvts.getRawParameterValue (plugin::kMotionId);
+    toneValue = apvts.getRawParameterValue (plugin::kToneId);
     mixValue = apvts.getRawParameterValue (plugin::kMixId);
     freezeValue = apvts.getRawParameterValue (plugin::kFreezeId);
 }
@@ -19,6 +23,40 @@ SpaceForgeProcessor::SpaceForgeProcessor()
 juce::AudioProcessorValueTreeState::ParameterLayout SpaceForgeProcessor::createParameterLayout()
 {
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
+    // The macros: 0..1, shown as what they do (the same text in the plug-in and the DAW). Text
+    // typed into the DAW goes back to the middle of the range showing that text; a plain number
+    // is read as percent. Some wrappers hand the text over without decoding UTF-8 (each byte one
+    // character), so that reading is tried too.
+    auto macro = [&params] (const char* id, const char* name, float init, std::string (*describe) (float)) {
+        auto toValue = [describe] (const juce::String& text) {
+            const auto trimmed = text.trim();
+            const auto utf8 = trimmed.toStdString();
+            std::string bytes;
+            for (auto p = trimmed.getCharPointer(); ! p.isEmpty(); ++p)
+                bytes += (char) (*p < 0x100 ? *p : '?');
+            int first = -1, last = -1;
+            for (int i = 0; i <= 1000; ++i)
+                if (const auto shown = describe ((float) i / 1000.0f); shown == utf8 || shown == bytes)
+                {
+                    first = first < 0 ? i : first;
+                    last = i;
+                }
+            if (first >= 0)
+                return (float) (first + last) / 2000.0f;
+            const auto number = text.trim().trimCharactersAtEnd ("% ");
+            return number.containsOnly ("0123456789.") && number.isNotEmpty() ? juce::jlimit (0.0f, 1.0f, number.getFloatValue() / 100.0f) : 0.0f;
+        };
+        params.push_back (std::make_unique<juce::AudioParameterFloat> (
+            juce::ParameterID { id, 1 }, name, juce::NormalisableRange<float> (0.0f, 1.0f), init,
+            juce::AudioParameterFloatAttributes()
+                .withStringFromValueFunction ([describe] (float v, int) { return juce::String::fromUTF8 (describe (v).c_str()); })
+                .withValueFromStringFunction (toValue)));
+    };
+    using dsp::MacroPositions;
+    macro (plugin::kSpaceId, "Space", MacroPositions::kInitSpace, dsp::describeSpace);
+    macro (plugin::kEchoId, "Echo", MacroPositions::kInitEcho, dsp::describeEcho);
+    macro (plugin::kMotionId, "Motion", MacroPositions::kInitMotion, dsp::describeMotion);
+    macro (plugin::kToneId, "Tone", MacroPositions::kInitTone, dsp::describeTone);
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
         juce::ParameterID { plugin::kMixId, 1 }, "Mix", juce::NormalisableRange<float> (0.0f, 1.0f), plugin::kDefaultMix,
         juce::AudioParameterFloatAttributes()
@@ -35,9 +73,15 @@ juce::AudioProcessorValueTreeState::ParameterLayout SpaceForgeProcessor::createP
 void SpaceForgeProcessor::prepareToPlay (double sampleRate, int)
 {
     engine.prepare (sampleRate); // may allocate: off the audio thread
+    updateEngine();
+    engine.reset(); // start at the current knob values, no glide from defaults
+}
+
+void SpaceForgeProcessor::updateEngine()
+{
+    engine.setMacros ({ spaceValue->load(), echoValue->load(), motionValue->load(), toneValue->load() });
     engine.setMix (mixValue->load());
     engine.setFreeze (freezeValue->load() >= 0.5f);
-    engine.reset(); // start at the current knob values, no glide from defaults
 }
 
 bool SpaceForgeProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -58,8 +102,10 @@ void SpaceForgeProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::
     if (getTotalNumInputChannels() == 1)
         buffer.copyFrom (1, 0, buffer, 0, 0, numSamples);
 
-    engine.setMix (mixValue->load());
-    engine.setFreeze (freezeValue->load() >= 0.5f);
+    updateEngine();
+    if (auto* head = getPlayHead())
+        if (const auto position = head->getPosition())
+            engine.setTempo (position->getBpm().orFallback (0.0), position->getIsPlaying(), position->getPpqPosition().orFallback (0.0));
     float* left = buffer.getWritePointer (0);
     float* right = buffer.getWritePointer (1);
     engine.process (left, right, left, right, numSamples);

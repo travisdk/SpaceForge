@@ -6,8 +6,8 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "dsp/SpaceEngine.h"
 
-// Granular texture (Clouds) into the room (Cloud Seed), with Mix and Freeze. Stereo out, mono
-// or stereo in. One fixed voicing until the macros arrive (phase 4).
+// Granular texture (Clouds) and echoes into the room (Cloud Seed), moved by the four macros
+// Space, Echo, Motion and Tone, plus Mix and Freeze. Stereo out, mono or stereo in.
 class SpaceForgeProcessor : public juce::AudioProcessor
 {
 public:
@@ -48,8 +48,13 @@ public:
 
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
+    void updateEngine();
 
     juce::AudioProcessorValueTreeState apvts;
+    std::atomic<float>* spaceValue = nullptr;
+    std::atomic<float>* echoValue = nullptr;
+    std::atomic<float>* motionValue = nullptr;
+    std::atomic<float>* toneValue = nullptr;
     std::atomic<float>* mixValue = nullptr;
     std::atomic<float>* freezeValue = nullptr;
     spaceforge::dsp::SpaceEngine engine;

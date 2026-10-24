@@ -115,6 +115,26 @@ TestSignal makeClick (double sampleRate, double tailSeconds)
     return t;
 }
 
+TestSignal makeBleeps (double sampleRate, double tailSeconds)
+{
+    // Very short sine bleeps (gone after ~40 ms), half a second apart: on these any copy of a
+    // note is heard as an echo or a double hit.
+    TestSignal t { "bleeps", "Korte bleeps (som BleepForge). Afslører ethvert ekko eller dobbelt-anslag.", silence (sampleRate, 2.0 + tailSeconds) };
+    const double notes[] = { 880.0, 660.0, 990.0, 740.0 };
+    for (int n = 0; n < 4; ++n)
+    {
+        const size_t start = samples (0.5 * n, sampleRate);
+        for (size_t i = 0; i < samples (0.08, sampleRate); ++i)
+        {
+            const double time = (double) i / sampleRate;
+            const auto s = (float) (0.5 * std::sin (2.0 * kPi * notes[n] * time) * std::exp (-time / 0.008) * std::min (1.0, time / 0.0005));
+            t.audio.l[start + i] += s;
+            t.audio.r[start + i] += s;
+        }
+    }
+    return t;
+}
+
 TestSignal makeNoiseBurst (double sampleRate, double tailSeconds)
 {
     TestSignal t { "stoej", "Kort burst af pink støj (250 ms). Viser halens klangfarve og bredde.", silence (sampleRate, 0.25 + tailSeconds) };
@@ -248,7 +268,7 @@ Stereo makePinkNoise (double sampleRate, double seconds, float rms, unsigned see
 
 std::vector<TestSignal> allTestSignals (double sampleRate, double tailSeconds)
 {
-    return { makeClick (sampleRate, tailSeconds), makeNoiseBurst (sampleRate, tailSeconds), makePad (sampleRate, tailSeconds),
+    return { makeClick (sampleRate, tailSeconds), makeBleeps (sampleRate, tailSeconds), makeNoiseBurst (sampleRate, tailSeconds), makePad (sampleRate, tailSeconds),
              makeSynthFigure (sampleRate, tailSeconds), makeHiHats (sampleRate, tailSeconds) };
 }
 } // namespace spaceforge::analysis

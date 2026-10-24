@@ -7,57 +7,46 @@
 
 namespace spaceforge::dsp
 {
-// The settings of Cloud Seed's algorithm that give SpaceForge 2 its character, in real units
-// (ms, Hz, dB, seconds), plus the granular texture in front of it. One fixed voicing, tuned by
-// measurement towards long, soft, dark and floating tails; the macros (phase 4) will move some
-// of these values.
+// The fixed part of SpaceForge 2's sound: everything no knob moves, in real units (ms, Hz, dB).
+// Tuned by measurement towards long, soft, dark and floating tails and approved by Henrik by
+// ear. What the knobs move is in MacroSettings (dsp/Macros.h).
 struct SpaceVoicing
 {
-    // Granular texture (Clouds) in front of the room. 0 = the room hears only the input,
-    // 1 = only the grains; equal-power in between. Henrik chose clearly audible grains (between
-    // the "tydelig" and "kraftig" variants of the phase 3 listening test).
-    double textureAmount = 1.0;
+    // Granular texture: where the grains come from and how wide they spread. (Density, feedback,
+    // window shape and level belong to Motion and are set by it.)
     TextureVoicing texture;
-    // Grains also straight to the output beside the room, in dB (-60 or lower = off): there they
-    // are heard as grains before the room dissolves them.
-    double grainsDirectDb = -3.0;
+    // Measurement only (the offline tools' "without grains" comparisons): the room hears the
+    // input instead of grains, and no grains go straight out. Always on in the plug-in.
+    bool grainsEnabled = true;
 
     // Input: what goes into the room. The low cut keeps kick drums out of the tail.
     double crossFeed = 0.2;        // 0..1, how much of each input side reaches the other
     double inputLowCutHz = 110.0;
-    double inputHighCutHz = 7000.0;
-    double preDelayMs = 12.0;
 
     // Early diffusion: smears attacks into a soft cloud before the room starts.
     int earlyStages = 6;
-    double earlyDelayMs = 40.0;
     double earlyFeedback = 0.7;
     double earlyModMs = 0.6;       // Cloud Seed only modulates above 0.5 ms
     double earlyModHz = 0.3;
     double earlyLevelDb = -6.0;
 
+    // Pre-delay and the early diffusion's spacing.
+    double preDelayMs = 12.0;
+    double earlyDelayMs = 40.0;
+
     // The late room: 12 recirculating delay lines, each with its own diffuser and damping.
     int lineCount = 12;
     double lineSizeMs = 180.0;     // each line is 0.5..1.5 times this
-    // Cloud Seed's decay setting. The measured T60 at 1 kHz is about 1.5 times longer (14-15 s),
-    // because each line's diffuser makes the loop longer than the line itself.
-    double decaySeconds = 9.5;
-    double lineModMs = 1.0;
-    double lineModHz = 0.25;
     int lateStages = 4;
     double lateDiffuseDelayMs = 50.0;
     double lateDiffuseFeedback = 0.7;
-    double lateDiffuseModMs = 0.6;
-    double lateDiffuseModHz = 0.4;
     double lateLevelDb = 0.0;
 
-    // Damping inside the feedback loop, applied on every pass: this is what makes the tail
-    // darker as it decays (treble dies sooner than the mids, the bass a little sooner too).
+    // Damping inside the feedback loop, on every pass: the bass a little shorter than the mids.
+    // (The treble damping belongs to Tone.)
     double lowShelfHz = 300.0;
     double lowShelfDb = -0.8;
     double highShelfHz = 2500.0;
-    double highShelfDb = -0.8;
-    double lowpassHz = 9000.0;
 
     // 0 = left and right rooms as different as possible (widest), 1 = identical.
     double crossSeed = 0.0;
@@ -65,7 +54,8 @@ struct SpaceVoicing
 
     // Below this the wet signal is mono (both sides the same).
     double monoBassHz = 150.0;
-    // Makes the wet signal as loud as the dry for steady material (calibrated with pink noise).
-    double wetGainDb = -1.1;
+    // Makes the wet signal as loud as the dry for steady material at Init (calibrated with pink
+    // noise); each knob's own compensation comes on top.
+    double wetGainDb = 0.41;
 };
 } // namespace spaceforge::dsp

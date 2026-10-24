@@ -6,6 +6,10 @@
 // Parameter ids and defaults shared by the plug-in and the offline tools (no JUCE here).
 namespace spaceforge::plugin
 {
+inline constexpr const char* kSpaceId = "space";
+inline constexpr const char* kEchoId = "echo";
+inline constexpr const char* kMotionId = "motion";
+inline constexpr const char* kToneId = "tone";
 inline constexpr const char* kMixId = "mix";
 inline constexpr const char* kFreezeId = "freeze";
 inline constexpr float kDefaultMix = 0.4f;

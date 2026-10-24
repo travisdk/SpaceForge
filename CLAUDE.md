@@ -26,6 +26,7 @@ Begge licenser **skal verificeres som det allerførste** (se Licens). Er en af d
 - Kernen: https://github.com/GhostNoteAudio/CloudSeedCore
 - Original (MIT): https://github.com/ValdemarOrn/CloudSeed
 - Har sine egne delaylinjer, tidlige refleksioner og modulation. Brug dem til Echo, før der overvejes et separat delay
+- (Fase 4: Cloud Seeds delaylinjer giver kun tilfældigt spredte refleksioner, ikke rytmiske ekkoer synket til tempo. Echo er derfor et lille ping-pong-delay, `source/dsp/EchoEngine.*`, foran rummet og ved siden af det)
 
 **Mutable Instruments Clouds** (granulær tekstur, SOL-delen)
 - "Texture synthesizer": granulær motor med feedback, spredning og indbygget reverb
@@ -51,10 +52,10 @@ Kun disse i v1: **Space, Echo, Motion, Tone, Mix, Freeze.** Nye knapper tilføje
 
 Makroerne har **faste roller, fast retning og én fælles absolut skala i alle presets.** En knapposition betyder altid det samme, uanset preset. Højre er altid "mere".
 
-- **Space**: tæt og kort -> stort og uendeligt. Styrer rumstørrelse, decay og stereobredde
+- **Space**: tæt og kort -> stort og uendeligt. Styrer decay og stereobredde (ikke delaylinjernes længde: at ændre den, mens der er lyd i linjerne, klikker; målt i fase 4)
 - **Echo**: intet ekko -> mange gentagelser. Styrer ekko-mængde og feedback
 - **Motion**: stille -> levende. Styrer modulation, granulær aktivitet og tempo-synket auto-pan
-- **Tone**: mørk -> lys. Klangfarve uden at ændre lydstyrken (niveaukompensation)
+- **Tone**: mørk -> lys. Klangfarve uden at ændre lydstyrken (niveaukompensation). Dæmpning i rummet og ekkoet plus en blød diskant-"finish" efter rummet (rummets sløjfe må aldrig forstærke)
 
 Regler:
 - Hver intern parameter ejes af præcis én knap
