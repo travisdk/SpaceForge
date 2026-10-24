@@ -32,7 +32,7 @@ public:
     // A button drawn from a path: arrows, the heart, the dice, undo (from SpaceForge 1).
     struct ShapeButton : juce::Button
     {
-        enum class Shape { Left, Right, Heart, Dice, Back };
+        enum class Shape { Left, Right, Heart, Dice, Back, Lock };
         ShapeButton (Shape, const juce::String& tooltip);
         void paintButton (juce::Graphics&, bool highlighted, bool down) override;
         Shape shape;
@@ -47,6 +47,7 @@ public:
     void clickMode (int mode) { modeButtons[(size_t) mode]->triggerClick(); }
     // (at once, not through the message loop as triggerClick does)
     void clickDice() { dice.onClick(); processor.dispatchPendingMessages(); }
+    void clickModeLock() { modeLock.onClick(); processor.dispatchPendingMessages(); }
     void clickUndo() { undo.onClick(); processor.dispatchPendingMessages(); }
     PresetBrowser& presetBrowser() { return browser; }
 
@@ -82,7 +83,8 @@ private:
     ShapeButton previous { ShapeButton::Shape::Left, "Previous preset" };
     ShapeButton next { ShapeButton::Shape::Right, "Next preset" };
     ShapeButton favourite { ShapeButton::Shape::Heart, "Favourite" };
-    ShapeButton dice { ShapeButton::Shape::Dice, "Dice: Space, Echo, Motion and Tone to new positions (Mode and Mix stay)" };
+    ShapeButton dice { ShapeButton::Shape::Dice, "Dice: Space, Echo, Motion and Tone to new positions; also the Mode when the lock is open (Shift+click: Mode this time). Mix stays." };
+    ShapeButton modeLock { ShapeButton::Shape::Lock, "Mode lock: closed = the dice keeps the Mode, open = the dice picks a Mode too" };
     ShapeButton undo { ShapeButton::Shape::Back, "Undo the last roll (Ctrl+Z)" };
     juce::TextButton save { "Save" };
     juce::Label presetName, presetInfo;

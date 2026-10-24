@@ -141,6 +141,22 @@ void testEditor()
     for (int m = 0; m < 4; ++m)
         CHECK (std::abs (knob (ids[m]) - before[m]) < 1.0e-4f);
 
+    // The Mode lock open: the dice picks another Mode too; undo brings the Mode back. Closed
+    // again afterwards (it is a saved preference).
+    const bool wasLocked = p.isModeLocked();
+    if (wasLocked)
+        view->clickModeLock();
+    CHECK (! p.isModeLocked());
+    const auto modeNow = std::lround (knob (plugin::kModeId));
+    view->clickDice();
+    CHECK (std::lround (knob (plugin::kModeId)) != modeNow);
+    view->clickUndo();
+    CHECK (std::lround (knob (plugin::kModeId)) == modeNow);
+    view->clickModeLock();
+    CHECK (p.isModeLocked());
+    if (! wasLocked)
+        p.setModeLocked (false);
+
     // A preset from the browser's list: every control jumps, the name shows it unchanged.
     const auto& lib = p.library();
     const int steel = const_cast<PresetLibrary&> (lib).indexOf ("Steel Ricochet");

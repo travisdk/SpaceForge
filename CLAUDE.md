@@ -56,7 +56,7 @@ Kun disse i v1: **Mode, Space, Echo, Motion, Tone, Mix.** (Freeze er taget ud in
 - Inden for én Mode er skalaen fast og ens for alle presets. Kun Mode må ændre en knaps spænd, aldrig et preset
 - Space på 50 % er et mellemstort rum (ca. 12 s) i alle Modes, så knappen føles nogenlunde ens; yderpunkterne må variere mellem Modes
 - Teksten under Space viser altid de målte sekunder for den valgte Mode, og det testes
-- Terningen ændrer aldrig Mode; Mode er brugerens valg
+- Terningen ændrer kun Mode, hvis brugeren har åbnet Mode-låsen (hængelåsen ved Mode-rækken, låst som standard) eller holder Shift; ellers er Mode brugerens valg (Henrik valgte det ved at prøve, 2026-10-25)
 - Lo-fi-tilstande (fx Clouds' 8-bit eller spektrale kvantisering) bruges kun, hvis de bevidst er en del af en Mode
 
 Makroerne har **faste roller og fast retning i alle Modes, og inden for en Mode én fælles absolut skala i alle presets.** En knapposition betyder altid det samme, uanset preset. Højre er altid "mere".
@@ -86,7 +86,7 @@ Regler:
 - JSON, én fil pr. preset, brugerpresets i brugerens dokumentmappe
 - Visning som i SpaceForge 1: browser til venstre (søgning, favoritter, kategorierne er Modes), navnet med forrige/næste, favorit, terning, fortryd og Save
 - Preset-skift er **rent**: lyden skifter straks med en kort crossfade (30 til 50 ms), ingen spillover. Knap-animationen er kun visuel og må aldrig få lyden til at glide. Delaytider crossfades i stedet for at glide (ingen pitch-sweep)
-- Terningen flytter de fire makroer synligt (ca. 250 ms animation), mindst to af dem mærkbart. Mode og Mix røres aldrig. Fortryd for de sidste 10 kast. Ændret preset markeres med *
+- Terningen flytter de fire makroer synligt (ca. 250 ms animation), mindst to af dem mærkbart. Mix røres aldrig; Mode kun med åben Mode-lås eller Shift. Fortryd for de sidste 10 kast. Ændret preset markeres med *
 - **Alt der ændrer lyden, skal kunne ses i UI'et**
 
 ## Lydmål og måling

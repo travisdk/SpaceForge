@@ -28,4 +28,12 @@ MacroKnobs rollMacros (const MacroKnobs& from, juce::Random& random)
         to[m] = from[m] < 0.5f ? 1.0f : 0.0f;
     return to;
 }
+
+int rollMode (int from, int numModes, juce::Random& random)
+{
+    if (numModes < 2)
+        return from;
+    const int other = random.nextInt (numModes - 1);
+    return other >= from ? other + 1 : other;
+}
 } // namespace spaceforge

@@ -8,7 +8,8 @@
 #include <deque>
 
 // The dice (from SpaceForge 1): moves the four macros to new random positions over their whole
-// travel, so you see and hear what happened. Mode and Mix are never touched (CLAUDE.md).
+// travel, so you see and hear what happened; with the Mode lock open (or Shift) also to another
+// Mode. Mix is never touched (CLAUDE.md).
 namespace spaceforge
 {
 using MacroKnobs = std::array<float, 4>; // Space, Echo, Motion, Tone (0..1)
@@ -18,29 +19,39 @@ using MacroKnobs = std::array<float, 4>; // Space, Echo, Motion, Tone (0..1)
 inline constexpr float kMinMove = 0.2f;
 MacroKnobs rollMacros (const MacroKnobs& from, juce::Random& random);
 
-// Undo for the last rolls: the knobs before each. At most kDepth steps; the oldest falls off.
+// Another Mode than `from`, evenly among the others.
+int rollMode (int from, int numModes, juce::Random& random);
+
+// What a roll changes: the four knobs and the Mode.
+struct RollStep
+{
+    MacroKnobs knobs {};
+    int mode = 0;
+};
+
+// Undo for the last rolls: what was there before each. At most kDepth steps; the oldest falls off.
 class VariationHistory
 {
 public:
     static constexpr size_t kDepth = 10;
 
-    void push (const MacroKnobs& knobs)
+    void push (const RollStep& step)
     {
-        steps.push_back (knobs);
+        steps.push_back (step);
         if (steps.size() > kDepth)
             steps.pop_front();
     }
     bool canUndo() const { return ! steps.empty(); }
-    MacroKnobs pop()
+    RollStep pop()
     {
-        const auto knobs = steps.back();
+        const auto step = steps.back();
         steps.pop_back();
-        return knobs;
+        return step;
     }
     void clear() { steps.clear(); }
     size_t size() const { return steps.size(); }
 
 private:
-    std::deque<MacroKnobs> steps;
+    std::deque<RollStep> steps;
 };
 } // namespace spaceforge

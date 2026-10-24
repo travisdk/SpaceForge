@@ -101,6 +101,25 @@ void SpaceForgeEditor::ShapeButton::paintButton (juce::Graphics& g, bool highlig
             g.fillPath (head);
             return;
         }
+        case Shape::Lock:
+        {
+            // a padlock: closed (toggle on) in the quiet colour, open in the accent
+            const bool locked = getToggleState();
+            if (! locked && isEnabled())
+                colour = down ? theme::text : theme::glow;
+            const auto body = juce::Rectangle<float> (area.getWidth() * 0.8f, area.getHeight() * 0.5f)
+                                  .withCentre ({ area.getCentreX(), area.getY() + area.getHeight() * 0.72f });
+            g.setColour (colour);
+            g.fillRoundedRectangle (body, 2.0f);
+            const float r = body.getWidth() * 0.3f;
+            const float x = body.getCentreX() + (locked ? 0.0f : body.getWidth() * 0.32f);
+            p.startNewSubPath (x - r, body.getY());
+            p.lineTo (x - r, body.getY() - r * 0.6f);
+            p.addCentredArc (x, body.getY() - r * 0.6f, r, r, 0.0f, -juce::MathConstants<float>::halfPi, juce::MathConstants<float>::halfPi);
+            p.lineTo (x + r, locked ? body.getY() : body.getY() - r * 0.6f);
+            g.strokePath (p, juce::PathStrokeType (1.8f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+            return;
+        }
         case Shape::Dice:
         {
             // the five face: rounded square with five pips
@@ -140,7 +159,9 @@ SpaceForgeEditor::SpaceForgeEditor (SpaceForgeProcessor& p)
         const auto key = processor.preset().key();
         processor.setFavourite (key, ! processor.library().isFavourite (key));
     };
-    dice.onClick = [this] { processor.roll(); };
+    dice.onClick = [this] { processor.roll (! processor.isModeLocked() || juce::ModifierKeys::currentModifiers.isShiftDown()); };
+    modeLock.onClick = [this] { processor.setModeLocked (! processor.isModeLocked()); };
+    content.addAndMakeVisible (modeLock);
     undo.onClick = [this] { processor.undoRoll(); };
     save.setTooltip ("Save as your own preset");
     save.onClick = [this] { showSaveDialog(); };
@@ -257,6 +278,9 @@ void SpaceForgeEditor::updateFromPreset()
     presetInfo.setText (info, juce::dontSendNotification);
     favourite.setToggleState (processor.library().isFavourite (preset.key()), juce::dontSendNotification);
     undo.setEnabled (processor.canUndoRoll());
+    modeLock.setToggleState (processor.isModeLocked(), juce::dontSendNotification);
+    modeLock.setTooltip (processor.isModeLocked() ? "Mode locked: the dice keeps the Mode (click to let it pick a Mode too)"
+                                                  : "Mode open: the dice picks a Mode too (click to lock it)");
     browser.refresh (processor.presetIndex());
     timerCallback();
 }
@@ -478,6 +502,8 @@ void SpaceForgeEditor::resized()
     presetInfo.setBounds (header);
 
     auto modes = area.removeFromTop (kModesHeight).withSizeKeepingCentre (area.getWidth(), 26);
+    modeLock.setBounds (modes.removeFromRight (30).withSizeKeepingCentre (30, 30));
+    modes.removeFromRight (4);
     const int modeWidth = modes.getWidth() / dsp::kNumModes;
     for (auto& button : modeButtons)
         button->setBounds (modes.removeFromLeft (modeWidth));

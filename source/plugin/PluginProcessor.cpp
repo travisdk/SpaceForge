@@ -23,6 +23,7 @@ SpaceForgeProcessor::SpaceForgeProcessor()
     auto favourites = juce::StringArray::fromLines (userSettings.getValue ("favourites"));
     favourites.removeEmptyStrings();
     presetLibrary.setFavourites (favourites);
+    modeLocked = userSettings.getBoolValue ("modeLocked", true);
 }
 
 int SpaceForgeProcessor::currentMode() const
@@ -309,9 +310,16 @@ MacroKnobs SpaceForgeProcessor::knobs() const
     return { spaceValue->load(), echoValue->load(), motionValue->load(), toneValue->load() };
 }
 
-void SpaceForgeProcessor::setKnobs (const MacroKnobs& k)
+void SpaceForgeProcessor::setKnobs (const MacroKnobs& k, int mode)
 {
     jumpFrom = knobs();
+    if (mode != currentMode())
+        if (auto* param = apvts.getParameter (plugin::kModeId))
+        {
+            param->beginChangeGesture();
+            param->setValueNotifyingHost (param->convertTo0to1 ((float) mode));
+            param->endChangeGesture();
+        }
     const char* ids[] = { plugin::kSpaceId, plugin::kEchoId, plugin::kMotionId, plugin::kToneId };
     for (size_t m = 0; m < k.size(); ++m)
         if (auto* param = apvts.getParameter (ids[m]))
@@ -325,16 +333,27 @@ void SpaceForgeProcessor::setKnobs (const MacroKnobs& k)
     sendChangeMessage();
 }
 
-void SpaceForgeProcessor::roll()
+void SpaceForgeProcessor::roll (bool withMode)
 {
-    rolls.push (knobs());
-    setKnobs (rollMacros (knobs(), random));
+    rolls.push ({ knobs(), currentMode() });
+    setKnobs (rollMacros (knobs(), random), withMode ? rollMode (currentMode(), dsp::kNumModes, random) : currentMode());
 }
 
 void SpaceForgeProcessor::undoRoll()
 {
     if (rolls.canUndo())
-        setKnobs (rolls.pop());
+    {
+        const auto step = rolls.pop();
+        setKnobs (step.knobs, step.mode);
+    }
+}
+
+void SpaceForgeProcessor::setModeLocked (bool locked)
+{
+    modeLocked = locked;
+    userSettings.setValue ("modeLocked", locked);
+    userSettings.saveIfNeeded();
+    sendChangeMessage();
 }
 
 bool SpaceForgeProcessor::presetUnchanged() const

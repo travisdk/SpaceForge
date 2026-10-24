@@ -69,9 +69,13 @@ public:
     // Saves the controls as a user preset and makes it the current one; false if it failed.
     bool saveUserPreset (const juce::String& name);
 
-    // The dice: the four macros to new random positions (Mode and Mix stay), clean switch, the
-    // knobs glide on screen. Undo goes back through the last ten rolls.
-    void roll();
+    // The dice: the four macros to new random positions, and with withMode also another Mode
+    // (Mix stays); clean switch, the knobs glide on screen. Undo goes back through the last ten
+    // rolls. Whether the Mode is locked against the dice is the user's preference (saved with
+    // the favourites, not in presets: it is not part of the sound).
+    void roll (bool withMode);
+    bool isModeLocked() const { return modeLocked; }
+    void setModeLocked (bool locked);
     bool canUndoRoll() const { return rolls.canUndo(); }
     void undoRoll();
     int knobJumpCount() const { return jumps; }
@@ -123,11 +127,12 @@ private:
         return o;
     }() };
     spaceforge::VariationHistory rolls;
+    bool modeLocked = true;
     juce::Random random;
     int jumps = 0;
     spaceforge::MacroKnobs jumpFrom {};
     spaceforge::MacroKnobs knobs() const;
-    void setKnobs (const spaceforge::MacroKnobs&);
+    void setKnobs (const spaceforge::MacroKnobs&, int mode);
 
     std::vector<spaceforge::analysis::TestSignal> auditionSounds; // built once, never changed after
     std::atomic<int> auditionSound { -1 };                        // -1: the real input
