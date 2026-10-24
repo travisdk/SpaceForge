@@ -6,6 +6,12 @@
 // its direction with an audible minimum in every Mode; a Mode change is clean (no click, nothing
 // of the old tail, no allocation), and so is a preset change within a Mode.
 
+// GCC flags free() inside the replacement operator delete as "mismatched" with new-expressions
+// once inlined; these are the replacement functions themselves, so the warning does not apply.
+#if defined(__GNUC__) && ! defined(__clang__)
+ #pragma GCC diagnostic ignored "-Wmismatched-new-delete"
+#endif
+
 #include <atomic>
 #include <cmath>
 #include <cstdlib>

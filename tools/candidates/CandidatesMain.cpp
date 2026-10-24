@@ -163,7 +163,8 @@ int main (int argc, char** argv)
     const double pinkDry = analysis::rmsDb (pink, at (6.0), pink.size());
     const auto pad = analysis::makePad (kRate, 8.0).audio;
     const auto figure = analysis::makeSynthFigure (kRate, 8.0).audio;
-    const auto burst = analysis::makeNoiseBurst (kRate, 30.0).audio;
+    // A long tail: 30 s was too short for tails that hold themselves (Space near "∞" showed 25 s).
+    const auto burst = analysis::makeNoiseBurst (kRate, 120.0).audio;
     const auto softLoud = scaled (figure, -30.0f), softQuiet = scaled (figure, -90.0f);
     const analysis::Stereo silence { std::vector<float> (at (4.0)), std::vector<float> (at (4.0)) };
 
