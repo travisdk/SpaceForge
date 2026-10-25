@@ -344,12 +344,12 @@ void testNoHiddenEcho()
 
 void testTexts()
 {
-    CHECK (dsp::describeEcho (0.0f) == "intet ekko");
-    CHECK (dsp::describeMotion (0.0f) == "stille");
-    CHECK (dsp::describeMotion (1.0f).find ("pan ½ takt") != std::string::npos);
-    CHECK (dsp::describeMotion (0.5f).find ("pan 2 takter") != std::string::npos);
-    CHECK (dsp::describeTone (0.0f) == "mørk ●○○○○ lys");
-    CHECK (dsp::describeTone (1.0f) == "mørk ●●●●● lys");
+    CHECK (dsp::describeEcho (0.0f) == "no echo");
+    CHECK (dsp::describeMotion (0.0f) == "still");
+    CHECK (dsp::describeMotion (1.0f).find ("pan ½ bar") != std::string::npos);
+    CHECK (dsp::describeMotion (0.5f).find ("pan 2 bars") != std::string::npos);
+    CHECK (dsp::describeTone (0.0f) == "dark ●○○○○ bright");
+    CHECK (dsp::describeTone (1.0f) == "dark ●●●●● bright");
 }
 } // namespace
 

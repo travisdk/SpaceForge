@@ -7,8 +7,8 @@
 
 // A big rotary control for one of the fixed macros (from SpaceForge 1): its name underneath and,
 // below that, what it is doing right now: in real units ("104 s", "1/8d · 3x"), or for Motion
-// and Tone a drawn scale between two fixed words ("mørk ▮▮▮▯▯ lys"), with an optional line
-// under it ("pan 2 takter"). Nothing in it moves sideways. Double-click returns to Init.
+// and Tone a drawn scale between two fixed words ("dark ▮▮▮▯▯ bright"), with an optional line
+// under it ("pan 2 bars"). Nothing in it moves sideways. Double-click returns to Init.
 class MacroKnob : public juce::Component, private juce::Timer
 {
 public:

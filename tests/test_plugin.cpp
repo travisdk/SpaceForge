@@ -83,11 +83,11 @@ void testTexts()
     // The DAW shows what the knobs do, in the same words as the plug-in.
     SpaceForgeProcessor p;
     auto text = [&p] (const char* id, float value) { return p.parameters().getParameter (id)->getText (value, 64); };
-    CHECK (text (plugin::kEchoId, 0.0f) == "intet ekko");
+    CHECK (text (plugin::kEchoId, 0.0f) == "no echo");
     CHECK (text (plugin::kEchoId, 0.5f) == juce::String::fromUTF8 (dsp::describeEcho (0.5f).c_str()));
-    CHECK (text (plugin::kMotionId, 0.0f) == "stille");
+    CHECK (text (plugin::kMotionId, 0.0f) == "still");
     CHECK (text (plugin::kSpaceId, 0.6f) == juce::String::fromUTF8 (dsp::describeSpace (0.6f).c_str()));
-    CHECK (text (plugin::kToneId, 0.0f).startsWith (juce::String::fromUTF8 ("m\u00f8rk")));
+    CHECK (text (plugin::kToneId, 0.0f).startsWith ("dark"));
 
     // Text back to a value lands where the same text is shown (the DAW's typed-in values).
     for (const char* id : { plugin::kSpaceId, plugin::kEchoId, plugin::kMotionId, plugin::kToneId })

@@ -410,7 +410,7 @@ void SpaceForgeProcessor::startAudition()
 
 juce::String SpaceForgeProcessor::auditionSoundName (int index) const
 {
-    static const char* names[kNumAuditionSounds] = { "pad", "bleeps", "synth-figur", "klik", "hi-hat" };
+    static const char* names[kNumAuditionSounds] = { "pad", "bleeps", "synth figure", "click", "hi-hat" };
     return juce::isPositiveAndBelow (index, kNumAuditionSounds) ? names[index] : "";
 }
 

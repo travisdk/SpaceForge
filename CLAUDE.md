@@ -70,7 +70,8 @@ Regler:
 - Hver intern parameter ejes af præcis én knap
 - Ingen makro må ændre det samlede niveau mere end ca. 3 dB
 - Alle makroer virker i alle presets
-- Under hver knap vises værdien i rigtige enheder (fx "18 s", "1/8d · 3x", "mørk ••••○ lys"), og DAW'en får de samme tekster
+- Under hver knap vises værdien i rigtige enheder (fx "18 s", "1/8d · 3x", "dark ••••○ bright"), og DAW'en får de samme tekster
+- **Al tekst i produktet er på engelsk, altid** (knaptekster, tooltips, menuer, dialoger, Mode-beskrivelser, DAW-tekster, sorteringstilstanden). Samtalen med Henrik er stadig på dansk
 - **Intet skjult:** et preset gemmer kun værdierne af de synlige kontroller. Har et preset brug for et valg uden egen knap (fx nodeværdi eller ping-pong), vises det som tekst ved den relevante knap
 
 ## Stereo

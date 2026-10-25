@@ -327,11 +327,11 @@ void SpaceForgeEditor::timerCallback()
 
     // Motion: the scale, and the auto-pan's cycle under it
     const auto s = dsp::mapMacros ({ space, echo, motion, tone, mode });
-    juce::String pan = "ingen pan";
+    juce::String pan = "no pan";
     if (s.motionPanDepth > 0.0)
-        pan = s.motionPanBars == 0 ? utf8 ("pan ½ takt") : "pan " + juce::String (s.motionPanBars) + (s.motionPanBars == 1 ? " takt" : " takter");
-    macros[2]->setScale ("stille", "levende", motion, pan);
-    macros[3]->setScale (utf8 ("mørk"), "lys", tone);
+        pan = s.motionPanBars == 0 ? utf8 ("pan ½ bar") : "pan " + juce::String (s.motionPanBars) + (s.motionPanBars == 1 ? " bar" : " bars");
+    macros[2]->setScale ("still", "alive", motion, pan);
+    macros[3]->setScale ("dark", "bright", tone);
 
     const auto shownName = processor.presetName() + (processor.presetUnchanged() ? "" : " *");
     if (presetName.getText() != shownName)
@@ -632,23 +632,23 @@ void SpaceForgeEditor::showCandidate()
     const auto sound = processor.auditionSoundName (processor.auditionSoundIndex());
     if (sorter->size() == 0)
     {
-        sortTitle.setText ("Ingen kandidater i " + sorter->reviewFile().getParentDirectory().getFullPathName(), juce::dontSendNotification);
+        sortTitle.setText ("No candidates in " + sorter->reviewFile().getParentDirectory().getFullPathName(), juce::dontSendNotification);
         sortHelp.setText ({}, juce::dontSendNotification);
         return;
     }
     if (const auto* candidate = sorter->current())
     {
         processor.applyPreset (*candidate);
-        sortTitle.setText ("Kandidat " + juce::String (sorter->position() + 1) + " af " + juce::String (sorter->size()) + "  ·  "
-                               + dsp::modeSetup (candidate->mode).name + "  ·  beholdt " + juce::String (kept),
+        sortTitle.setText ("Candidate " + juce::String (sorter->position() + 1) + " of " + juce::String (sorter->size()) + "  ·  "
+                               + dsp::modeSetup (candidate->mode).name + "  ·  kept " + juce::String (kept),
                            juce::dontSendNotification);
-        sortHelp.setText (utf8 ("K behold   ·   S spring over   ·   ← fortryd   ·   1-5 testlyd (nu: ") + sound + ")   ·   R forfra",
+        sortHelp.setText (utf8 ("K keep   ·   S skip   ·   ← undo   ·   1-5 test sound (now: ") + sound + ")   ·   R restart",
                           juce::dontSendNotification);
     }
     else
     {
-        sortTitle.setText (utf8 ("Færdig: ") + juce::String (kept) + " beholdt af " + juce::String (sorter->size()), juce::dontSendNotification);
-        sortHelp.setText (utf8 ("← fortryd den sidste   ·   valgene er gemt i ") + sorter->reviewFile().getFullPathName(), juce::dontSendNotification);
+        sortTitle.setText ("Done: " + juce::String (kept) + " kept of " + juce::String (sorter->size()), juce::dontSendNotification);
+        sortHelp.setText (utf8 ("← undo the last one   ·   the choices are saved in ") + sorter->reviewFile().getFullPathName(), juce::dontSendNotification);
     }
 }
 

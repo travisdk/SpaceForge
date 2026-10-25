@@ -131,20 +131,20 @@ std::string describeEcho (float position)
 {
     const auto s = mapMacros ({ MacroPositions::kInitSpace, position, MacroPositions::kInitMotion, MacroPositions::kInitTone });
     if (s.echoSend <= 0.0)
-        return "intet ekko";
+        return "no echo";
     return "1/8d · " + std::to_string (echoRepeats (s.echoFeedback)) + "x";
 }
 
 std::string describeMotion (float position)
 {
     if (position < 0.02f)
-        return "stille";
+        return "still";
     const auto s = mapMacros ({ MacroPositions::kInitSpace, MacroPositions::kInitEcho, position, MacroPositions::kInitTone });
-    auto text = dots (position, "stille", "levende");
+    auto text = dots (position, "still", "alive");
     if (s.motionPanDepth > 0.0)
-        text += s.motionPanBars == 0 ? " · pan ½ takt" : " · pan " + std::to_string (s.motionPanBars) + (s.motionPanBars == 1 ? " takt" : " takter");
+        text += s.motionPanBars == 0 ? " · pan ½ bar" : " · pan " + std::to_string (s.motionPanBars) + (s.motionPanBars == 1 ? " bar" : " bars");
     return text;
 }
 
-std::string describeTone (float position) { return dots (position, "mørk", "lys"); }
+std::string describeTone (float position) { return dots (position, "dark", "bright"); }
 } // namespace spaceforge::dsp
