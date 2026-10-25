@@ -203,7 +203,6 @@ SpaceForgeEditor::SpaceForgeEditor (SpaceForgeProcessor& p)
         content.addAndMakeVisible (*macros[(size_t) m]);
     }
 
-    mix.setColour (juce::Slider::rotarySliderFillColourId, theme::text.withAlpha (0.8f));
     mix.setRotaryParameters (juce::MathConstants<float>::pi * 1.25f, juce::MathConstants<float>::pi * 2.75f, true);
     mix.setDoubleClickReturnValue (true, plugin::kDefaultMix);
     mix.setTooltip (utf8 ("Mix: tør -> våd"));
@@ -445,6 +444,7 @@ void SpaceForgeEditor::setAccent (juce::Colour colour)
                                      theme::ice.interpolatedWith (theme::glow, 0.5f) };
     for (int m = 0; m < kNumMacros; ++m)
         macros[(size_t) m]->slider.setColour (juce::Slider::rotarySliderFillColourId, accents[m]);
+    mix.setColour (juce::Slider::rotarySliderFillColourId, theme::glow.interpolatedWith (theme::text, 0.25f)); // a little quieter than the macros
     for (auto& button : modeButtons)
     {
         button->setColour (juce::TextButton::buttonOnColourId, theme::glow.withAlpha (0.22f));
