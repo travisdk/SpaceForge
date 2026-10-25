@@ -274,11 +274,17 @@ SpaceForgeEditor::SpaceForgeEditor (SpaceForgeProcessor& p)
         modeButtons[(size_t) m] = std::move (button);
     }
 
-    logo.setText ("S P A C E F O R G E   2", juce::dontSendNotification);
+    logo.setText ("S P A C E F O R G E", juce::dontSendNotification);
     logo.setFont (theme::font (15.0f, true));
     logo.setColour (juce::Label::textColourId, theme::glow);
     logo.setTooltip (juce::String ("SpaceForge ") + SPACEFORGE_VERSION_STRING + " - free software under the GNU AGPLv3");
     content.addAndMakeVisible (logo);
+
+    versionLabel.setText (juce::String ("version ") + SPACEFORGE_VERSION_STRING, juce::dontSendNotification);
+    versionLabel.setFont (theme::font (11.0f, false));
+    versionLabel.setColour (juce::Label::textColourId, theme::glow.withAlpha (0.55f));
+    versionLabel.setInterceptsMouseClicks (false, false);
+    content.addAndMakeVisible (versionLabel);
 
     for (auto* label : { &sortTitle, &sortHelp })
     {
@@ -493,6 +499,7 @@ void SpaceForgeEditor::setAccent (juce::Colour colour)
         button->setColour (juce::TextButton::textColourOnId, theme::glow);
     }
     logo.setColour (juce::Label::textColourId, theme::glow);
+    versionLabel.setColour (juce::Label::textColourId, theme::glow.withAlpha (0.55f));
     sortTitle.setColour (juce::Label::textColourId, theme::glow);
     processor.settings().setValue ("accent", colour.toString());
     repaint();
@@ -516,6 +523,7 @@ void SpaceForgeEditor::setBrowserOpen (bool open)
 {
     browser.setVisible (open);
     logo.setVisible (open);
+    versionLabel.setVisible (open);
     browserToggle.setToggleState (open, juce::dontSendNotification);
     processor.settings().setValue ("browser", open);
     applySizeLimits();
@@ -754,6 +762,7 @@ void SpaceForgeEditor::resized()
         auto logoRow = left.removeFromTop (34);
         gear.setBounds (logoRow.removeFromRight (34).withSizeKeepingCentre (30, 30));
         logo.setBounds (logoRow.withTrimmedLeft (2));
+        versionLabel.setBounds (left.removeFromTop (16).withTrimmedLeft (4));
         left.removeFromTop (4);
         browser.setBounds (left);
         area.removeFromLeft (14);

@@ -123,7 +123,7 @@ private:
 
     juce::Slider mix { juce::Slider::RotaryHorizontalVerticalDrag, juce::Slider::NoTextBox };
     juce::AudioProcessorValueTreeState::SliderAttachment mixAttachment;
-    juce::Label logo, mixLabel, mixValue;
+    juce::Label logo, versionLabel, mixLabel, mixValue;
     std::array<std::unique_ptr<juce::TextButton>, spaceforge::dsp::kNumModes> modeButtons;
 
     std::unique_ptr<juce::AlertWindow> saveDialog;
