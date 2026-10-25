@@ -102,7 +102,7 @@ class PitchShifter {
   }
   
  private:
-  // SpaceForge 2: floats instead of 16-bit samples (no rounding anywhere in Clouds).
+  // SpaceForge: floats instead of 16-bit samples (no rounding anywhere in Clouds).
   typedef FxEngine<4096, FORMAT_32_BIT> E;
   E engine_;
   float phase_;

@@ -1,8 +1,8 @@
-# Copyright (C) 2026 Henrik Juhl. Part of SpaceForge 2, licensed under the GNU AGPLv3 (see LICENSE).
+# Copyright (C) 2026 Henrik Juhl. Part of SpaceForge, licensed under the GNU AGPLv3 (see LICENSE).
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 cmake_minimum_required(VERSION 3.22)
-project(SpaceForge2 VERSION 0.1.0)
+project(SpaceForge VERSION 0.1.0)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -78,7 +78,7 @@ target_compile_definitions(clouds PUBLIC TEST)
 set_target_properties(clouds PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # ---------------------------------------------------------------------------------------------
-# SpaceForge 2's own sound engine (no JUCE): shared by the plug-in, the render tool and the tests.
+# SpaceForge's own sound engine (no JUCE): shared by the plug-in, the render tool and the tests.
 add_library(spaceforge_dsp STATIC
     source/dsp/SpaceEngine.cpp
     source/dsp/TextureEngine.cpp
@@ -114,13 +114,13 @@ add_executable(sf2_regress tools/regress/RegressMain.cpp)
 target_link_libraries(sf2_regress PRIVATE spaceforge_analysis juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)
 
 # ---------------------------------------------------------------------------------------------
-juce_add_plugin(SpaceForge2
+juce_add_plugin(SpaceForge
     COMPANY_NAME "Henrik Juhl"
-    BUNDLE_ID dk.hjuhl.spaceforge2
+    BUNDLE_ID dk.hjuhl.spaceforge
     PLUGIN_MANUFACTURER_CODE Hjuh
     PLUGIN_CODE SpF2
-    PRODUCT_NAME "SpaceForge2"
-    PLUGIN_NAME "SpaceForge 2"
+    PRODUCT_NAME "SpaceForge"
+    PLUGIN_NAME "SpaceForge"
     FORMATS VST3 Standalone
     VST3_CATEGORIES Fx Reverb Delay
     COPY_PLUGIN_AFTER_BUILD ${SPACEFORGE_INSTALL_AFTER_BUILD}
@@ -131,7 +131,7 @@ juce_add_plugin(SpaceForge2
     IS_MIDI_EFFECT FALSE
     EDITOR_WANTS_KEYBOARD_FOCUS FALSE)
 
-target_sources(SpaceForge2 PRIVATE
+target_sources(SpaceForge PRIVATE
     source/plugin/PluginProcessor.cpp
     source/plugin/PluginEditor.cpp
     source/plugin/ui/CloudView.cpp
@@ -148,7 +148,7 @@ juce_add_binary_data(SpaceForgePresets HEADER_NAME SpaceForgePresets.h NAMESPACE
 set_target_properties(SpaceForgePresets PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # The sorting mode's default folder (standalone --sort without a folder): the source tree's candidates.
-target_compile_definitions(SpaceForge2 PRIVATE SPACEFORGE_CANDIDATES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/presets/candidates")
+target_compile_definitions(SpaceForge PRIVATE SPACEFORGE_CANDIDATES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/presets/candidates")
 
 # SPACEFORGE_VERSION_STRING in SpaceForgeVersion.h: "git describe --tags --dirty", refreshed at
 # every build; the project VERSION when git or tags are missing. (From SpaceForge 1.)
@@ -158,21 +158,21 @@ set(SPACEFORGE_VERSION_COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${CMAKE_CURRENT_SOU
     -DFALLBACK=${PROJECT_VERSION} -DGIT_EXECUTABLE=${GIT_EXECUTABLE} -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/GitVersion.cmake)
 execute_process(COMMAND ${SPACEFORGE_VERSION_COMMAND})
 add_custom_target(SpaceForgeVersion COMMAND ${SPACEFORGE_VERSION_COMMAND} BYPRODUCTS ${SPACEFORGE_VERSION_HEADER}
-    COMMENT "Checking the SpaceForge 2 version")
-add_dependencies(SpaceForge2 SpaceForgeVersion)
-target_include_directories(SpaceForge2 PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/generated source)
+    COMMENT "Checking the SpaceForge version")
+add_dependencies(SpaceForge SpaceForgeVersion)
+target_include_directories(SpaceForge PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/generated source)
 
-target_compile_definitions(SpaceForge2 PUBLIC
+target_compile_definitions(SpaceForge PUBLIC
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
     JUCE_VST3_CAN_REPLACE_VST2=0)
 
 # GCC: run the link-time optimisation in parallel (and without its "serial compilation" note)
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    target_link_options(SpaceForge2 PUBLIC -flto=auto)
+    target_link_options(SpaceForge PUBLIC -flto=auto)
 endif()
 
-target_link_libraries(SpaceForge2
+target_link_libraries(SpaceForge
     PRIVATE
         juce::juce_audio_utils
         spaceforge_analysis
@@ -183,22 +183,22 @@ target_link_libraries(SpaceForge2
         juce::juce_recommended_warning_flags)
 
 # CLAP via clap-juce-extensions (as in SpaceForge 1), copied to the CLAP folder after each build
-clap_juce_extensions_plugin(TARGET SpaceForge2
-    CLAP_ID "dk.hjuhl.spaceforge2"
+clap_juce_extensions_plugin(TARGET SpaceForge
+    CLAP_ID "dk.hjuhl.spaceforge"
     CLAP_FEATURES audio-effect reverb delay stereo)
 if (SPACEFORGE_INSTALL_AFTER_BUILD)
-    add_custom_command(TARGET SpaceForge2_CLAP POST_BUILD
+    add_custom_command(TARGET SpaceForge_CLAP POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory ${CLAP_INSTALL_DIR}
-        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:SpaceForge2_CLAP> ${CLAP_INSTALL_DIR}/
-        COMMENT "Installing SpaceForge2.clap into ${CLAP_INSTALL_DIR}")
+        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:SpaceForge_CLAP> ${CLAP_INSTALL_DIR}/
+        COMMENT "Installing SpaceForge.clap into ${CLAP_INSTALL_DIR}")
 endif()
 
 # sf2_screenshot: the interface of a fresh instance as a PNG (from SpaceForge 1), for checking
 # the layout before anyone looks at it.
 add_executable(sf2_screenshot EXCLUDE_FROM_ALL tools/screenshot/ScreenshotMain.cpp)
-target_include_directories(sf2_screenshot PRIVATE source $<TARGET_PROPERTY:SpaceForge2,INCLUDE_DIRECTORIES>)
-target_compile_definitions(sf2_screenshot PRIVATE $<TARGET_PROPERTY:SpaceForge2,COMPILE_DEFINITIONS>)
-target_link_libraries(sf2_screenshot PRIVATE SpaceForge2 spaceforge_analysis)
+target_include_directories(sf2_screenshot PRIVATE source $<TARGET_PROPERTY:SpaceForge,INCLUDE_DIRECTORIES>)
+target_compile_definitions(sf2_screenshot PRIVATE $<TARGET_PROPERTY:SpaceForge,COMPILE_DEFINITIONS>)
+target_link_libraries(sf2_screenshot PRIVATE SpaceForge spaceforge_analysis)
 
 # ---------------------------------------------------------------------------------------------
 option(SPACEFORGE_BUILD_TESTS "Build the unit tests (run with ctest)" ON)

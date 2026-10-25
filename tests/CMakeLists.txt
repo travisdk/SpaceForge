@@ -1,4 +1,4 @@
-# Copyright (C) 2026 Henrik Juhl. Part of SpaceForge 2, licensed under the GNU AGPLv3 (see LICENSE).
+# Copyright (C) 2026 Henrik Juhl. Part of SpaceForge, licensed under the GNU AGPLv3 (see LICENSE).
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 # Unit tests, run with ctest. SpaceForge_Tests builds them all.
@@ -36,17 +36,17 @@ add_dependencies(SpaceForge_Tests test_modes)
 
 # The plug-in as a host drives it.
 add_executable(test_plugin test_plugin.cpp)
-target_include_directories(test_plugin PRIVATE ${PROJECT_SOURCE_DIR}/source $<TARGET_PROPERTY:SpaceForge2,INCLUDE_DIRECTORIES>)
-target_compile_definitions(test_plugin PRIVATE $<TARGET_PROPERTY:SpaceForge2,COMPILE_DEFINITIONS>)
-target_link_libraries(test_plugin PRIVATE SpaceForge2 spaceforge_analysis)
+target_include_directories(test_plugin PRIVATE ${PROJECT_SOURCE_DIR}/source $<TARGET_PROPERTY:SpaceForge,INCLUDE_DIRECTORIES>)
+target_compile_definitions(test_plugin PRIVATE $<TARGET_PROPERTY:SpaceForge,COMPILE_DEFINITIONS>)
+target_link_libraries(test_plugin PRIVATE SpaceForge spaceforge_analysis)
 add_test(NAME plugin COMMAND test_plugin)
 add_dependencies(SpaceForge_Tests test_plugin)
 
 # Presets: format, hostile files, fuzz (time-limited), the candidate sorting, applying a preset.
 add_executable(test_presets test_presets.cpp)
-target_include_directories(test_presets PRIVATE ${PROJECT_SOURCE_DIR}/source $<TARGET_PROPERTY:SpaceForge2,INCLUDE_DIRECTORIES>)
-target_compile_definitions(test_presets PRIVATE $<TARGET_PROPERTY:SpaceForge2,COMPILE_DEFINITIONS>)
-target_link_libraries(test_presets PRIVATE SpaceForge2 spaceforge_analysis)
+target_include_directories(test_presets PRIVATE ${PROJECT_SOURCE_DIR}/source $<TARGET_PROPERTY:SpaceForge,INCLUDE_DIRECTORIES>)
+target_compile_definitions(test_presets PRIVATE $<TARGET_PROPERTY:SpaceForge,COMPILE_DEFINITIONS>)
+target_link_libraries(test_presets PRIVATE SpaceForge spaceforge_analysis)
 add_test(NAME presets COMMAND test_presets)
 set_tests_properties(presets PROPERTIES TIMEOUT 400)
 add_dependencies(SpaceForge_Tests test_presets)

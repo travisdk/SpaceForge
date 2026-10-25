@@ -1,4 +1,4 @@
-# Copyright (C) 2026 Henrik Juhl. Part of SpaceForge 2, licensed under the GNU AGPLv3 (see LICENSE).
+# Copyright (C) 2026 Henrik Juhl. Part of SpaceForge, licensed under the GNU AGPLv3 (see LICENSE).
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """Prints Cloud Seed v1's factory programs (third_party/cloudseed-programs, MIT) in real units,
 with v1's own scaling (ReverbController.h and AudioLib/ValueTables.cpp at commit 13a625e). The

@@ -160,7 +160,7 @@ class Reverb {
   }
   
  private:
-  // SpaceForge 2: floats instead of 12-bit samples (no rounding anywhere in Clouds).
+  // SpaceForge: floats instead of 12-bit samples (no rounding anywhere in Clouds).
   typedef FxEngine<16384, FORMAT_32_BIT> E;
   E engine_;
   

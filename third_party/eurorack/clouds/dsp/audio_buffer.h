@@ -44,7 +44,7 @@ const int32_t kInterpolationTail = 8;
 namespace clouds {
 
 enum Resolution {
-  // SpaceForge 2: samples kept as floats, nothing rounded. The 16-bit buffer truncated every
+  // SpaceForge: samples kept as floats, nothing rounded. The 16-bit buffer truncated every
   // sample towards zero: a fixed hiss that SpaceForge's feedback loop kept alive, and quiet
   // sounds lost (measured). A plug-in has the memory for floats.
   RESOLUTION_32_BIT_FLOAT,
@@ -147,7 +147,7 @@ class AudioBuffer {
       if (crossfade_counter_ < kCrossFadeSize) {
         while (size--) {
           if (crossfade_counter_ < kCrossFadeSize) {
-            // SpaceForge 2: the crossfade tail is kept as floats too.
+            // SpaceForge: the crossfade tail is kept as floats too.
             tail_[crossfade_counter_++] = *in;
             in += stride;
           }

@@ -1,6 +1,6 @@
 # Third-party code
 
-SpaceForge 2 is licensed under the GNU AGPLv3 (see `LICENSE`). Everything below is compatible
+SpaceForge is licensed under the GNU AGPLv3 (see `LICENSE`). Everything below is compatible
 with it. Licenses verified 2026-10-23 by reading every vendored file's header.
 
 ## Vendored engines (`third_party/`)
@@ -26,7 +26,7 @@ Notes:
   `utils/murmurhash3.h`, `third_party/STM`, `programming/serial`) are hardware/UI code that the
   Clouds DSP does not use, and are not copied.
 - **Changes to the engines**, each only what real-time use in a plug-in or full audio quality
-  needs, marked "SpaceForge 2:" in the code. The algorithms are unchanged.
+  needs, marked "SpaceForge:" in the code. The algorithms are unchanged.
   - Cloud Seed, `DSP/ReverbChannel.h`: caches the per-line random values and regenerates them
     only when a seed changes. The original regenerated them (allocating a `std::vector`) on
     every decay, size or modulation change, which must not happen on the audio thread.
@@ -64,7 +64,7 @@ Notes:
   past `lut_grain_size`. SpaceForge never sends a setting above 0.999 (dry/wet 0.999: grains
   only, the dry signal 56 dB down) and mixes dry and grains itself.
 - Clouds runs at its native 32 kHz; `source/dsp/TextureEngine.*` converts to and from the host
-  rate with SpaceForge 2's own converter (`source/dsp/Resampler.h`).
+  rate with SpaceForge's own converter (`source/dsp/Resampler.h`).
 - Only build glue lives outside `third_party/`: `source/compat/CloudSeedCompat.h` supplies
   `strcpy_s` and `std::sinf`/`sqrtf`/`expf`, which Cloud Seed expects from MSVC, to other
   compilers; Clouds is built with its author's desktop define `TEST`.
@@ -82,4 +82,4 @@ Notes:
 | From | What | License |
 |---|---|---|
 | `../SubForge` (same author) | The settings menu (accent colours, interface size, tooltips, preset folder, About), opening a folder with xdg-open and the freedesktop trash (`source/presets/PresetFiles.h`), adapted | AGPLv3 |
-| `../SpaceForge` (SpaceForge 1, same author) | CMake setup, `cmake/GitVersion.cmake`, test helpers in `tests/TestUtils.h`, bus layout and state handling patterns; the look and the interface (`source/plugin/ui/Theme.h`, `MacroKnob`, `CloudView`, the editor layout, `tools/screenshot`), adapted to the six controls; the preset file reading and writing (`source/presets/Preset.*`, from `presets/Preset.*`), the preset browser, dice with undo and shape buttons (`source/plugin/ui/PresetBrowser.*`, `source/presets/Variation.*`, the editor layout), adapted to the Modes | AGPLv3 |
+| `../protoSpaceForge` (SpaceForge 1, same author) | CMake setup, `cmake/GitVersion.cmake`, test helpers in `tests/TestUtils.h`, bus layout and state handling patterns; the look and the interface (`source/plugin/ui/Theme.h`, `MacroKnob`, `CloudView`, the editor layout, `tools/screenshot`), adapted to the six controls; the preset file reading and writing (`source/presets/Preset.*`, from `presets/Preset.*`), the preset browser, dice with undo and shape buttons (`source/plugin/ui/PresetBrowser.*`, `source/presets/Variation.*`, the editor layout), adapted to the Modes | AGPLv3 |

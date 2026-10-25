@@ -61,7 +61,7 @@ namespace Cloudseed
 		Lp1 lowPass;
 
 		int delayLineSeed;
-		// SpaceForge 2: the per-line random values are cached and only regenerated when a seed
+		// SpaceForge: the per-line random values are cached and only regenerated when a seed
 		// changes, so decay, size and modulation changes never allocate on the audio thread.
 		std::vector<float> delayLineSeeds;
 		int postDiffusionSeed;
@@ -333,7 +333,7 @@ namespace Cloudseed
 
 			// completely zero if no input present
 			// Previously, the very small values were causing some really strange CPU spikes
-			// SpaceForge 2: the threshold was -90 dBFS per sample, a dead zone around zero that
+			// SpaceForge: the threshold was -90 dBFS per sample, a dead zone around zero that
 			// distorted every quiet signal into hiss (the sky's grains, quiet tails; measured).
 			// Now only values that are effectively zero (below -400 dB) become zero; the
 			// plug-in also runs with denormals flushed, which is what the CPU spikes were.

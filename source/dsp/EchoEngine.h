@@ -1,4 +1,4 @@
-// Copyright (C) 2026 Henrik Juhl. Part of SpaceForge 2, licensed under the GNU AGPLv3 (see LICENSE).
+// Copyright (C) 2026 Henrik Juhl. Part of SpaceForge, licensed under the GNU AGPLv3 (see LICENSE).
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 #pragma once
@@ -10,7 +10,7 @@ namespace spaceforge::dsp
 // Tempo-synced ping-pong echo: the first repeat on the left, the next on the right, and so on,
 // each one feedback times quieter and a little darker (one-pole low-pass in the loop) with the
 // bass taken out (no mud building up). Cloud Seed's own delay lines only make randomly spaced
-// reflections, not rhythmic repeats, so this small delay is SpaceForge 2's own.
+// reflections, not rhythmic repeats, so this small delay is SpaceForge's own.
 //
 // When the echo time changes (a new tempo) it is never glided (that would bend the pitch): the
 // old and the new time are crossfaded over 50 ms.

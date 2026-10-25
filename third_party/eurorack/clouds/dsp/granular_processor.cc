@@ -173,7 +173,7 @@ void GranularProcessor::Process(
     return;
   }
   
-  // Mixdown for mono processing. (SpaceForge 2: the input is float already.)
+  // Mixdown for mono processing. (SpaceForge: the input is float already.)
   for (size_t i = 0; i < size; ++i) {
     in_[i].l = input[i].l;
     in_[i].r = input[i].r;
@@ -281,7 +281,7 @@ void GranularProcessor::Process(
     float r = input[i].r * fade_out;
     l += out_[i].l * post_gain * fade_in;
     r += out_[i].r * post_gain * fade_in;
-    // SpaceForge 2: SoftConvert without the conversion to 16 bits.
+    // SpaceForge: SoftConvert without the conversion to 16 bits.
     output[i].l = SoftLimit(l * 0.5f);
     output[i].r = SoftLimit(r * 0.5f);
   }
@@ -412,7 +412,7 @@ void GranularProcessor::Prepare() {
 
     BufferAllocator allocator(workspace, workspace_size);
     diffuser_.Init(allocator.Allocate<float>(2048));
-    reverb_.Init(allocator.Allocate<float>(16384)); // SpaceForge 2: floats
+    reverb_.Init(allocator.Allocate<float>(16384)); // SpaceForge: floats
     
     size_t correlator_block_size = (kMaxWSOLASize / 32) + 2;
     uint32_t* correlator_data = allocator.Allocate<uint32_t>(
@@ -420,7 +420,7 @@ void GranularProcessor::Prepare() {
     correlator_.Init(
         &correlator_data[0],
         &correlator_data[correlator_block_size]);
-    // SpaceForge 2: floats, in their own memory (the module shared the correlator's and ran
+    // SpaceForge: floats, in their own memory (the module shared the correlator's and ran
     // past its end; only one of the two is used in each mode).
     pitch_shifter_.Init(allocator.Allocate<float>(4096));
     
@@ -439,7 +439,7 @@ void GranularProcessor::Prepare() {
         } else {
           buffer_32_[i].Init(
               buffer[i],
-              ((buffer_size[i]) / sizeof(float)), // SpaceForge 2: floats
+              ((buffer_size[i]) / sizeof(float)), // SpaceForge: floats
               tail_buffer_[i]);
         }
       }

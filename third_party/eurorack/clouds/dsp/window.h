@@ -65,7 +65,7 @@ class Window {
     phase_increment_ = phase_increment;
     phase_ = 0;
     regenerated_ = false;
-    // SpaceForge 2: a started window plays. Init() marks windows done and Start() never cleared
+    // SpaceForge: a started window plays. Init() marks windows done and Start() never cleared
     // it, so the stretch mode stayed silent (measured: -72 dB, also with the original 16 bits).
     done_ = false;
     half_ = false;

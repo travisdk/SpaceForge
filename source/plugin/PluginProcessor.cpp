@@ -1,4 +1,4 @@
-// Copyright (C) 2026 Henrik Juhl. Part of SpaceForge 2, licensed under the GNU AGPLv3 (see LICENSE).
+// Copyright (C) 2026 Henrik Juhl. Part of SpaceForge, licensed under the GNU AGPLv3 (see LICENSE).
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 #include "plugin/PluginProcessor.h"
@@ -452,10 +452,10 @@ juce::AudioProcessorEditor* SpaceForgeProcessor::createEditor()
 juce::PropertiesFile::Options SpaceForgeProcessor::settingsOptions()
 {
     juce::PropertiesFile::Options o;
-    o.applicationName = "SpaceForge2";
+    o.applicationName = "SpaceForge";
     o.filenameSuffix = ".settings";
     o.osxLibrarySubFolder = "Application Support";
-    o.folderName = "SpaceForge2";
+    o.folderName = "SpaceForge";
     return o;
 }
 

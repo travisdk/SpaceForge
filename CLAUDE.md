@@ -1,4 +1,4 @@
-# SpaceForge 2
+# SpaceForge
 
 Tekstur-effekt til minimal/hypnotisk techno og ambient: enorme, levende rum, ekkoer og granulær tekstur. Målet er **lange, bløde, mørke og flydende haler** til hypnotisk techno, i retning af den karakter SuperMassive og SOL er kendt for, og derfra prægning i Henriks egen retning.
 
@@ -98,7 +98,7 @@ Regler:
 Der er **ingen referenceoptagelser**. Henrik optager ikke noget gennem SuperMassive eller SOL. Retningen kommer fra viden om algoritmisk reverb og delay (feedback delay networks, diffusion, modulerede delaylinjer, dæmpning i feedback-loopet) plus Henriks ord-feedback.
 
 - **Testlyde** genereres af koden selv, deterministisk: tørt klik/impuls, kort støjburst, pad-akkord, kort synth-figur, hi-hat-mønster. Ingen eksterne lydfiler
-- **Offline render**: et værktøj renderer hver testlyd gennem SpaceForge 2 til WAV i `renders/` (er i `.gitignore`), så Henrik kan lytte uden DAW (`sf2_render --echo-duck`: korte bleep-renders af Echo og Duck ved 0, 50 og 100 %; `sf2_regress dump/compare`: beviser, at nye knapper på 0 ikke ændrer eksisterende presets)
+- **Offline render**: et værktøj renderer hver testlyd gennem SpaceForge til WAV i `renders/` (er i `.gitignore`), så Henrik kan lytte uden DAW (`sf2_render --echo-duck`: korte bleep-renders af Echo og Duck ved 0, 50 og 100 %; `sf2_regress dump/compare`: beviser, at nye knapper på 0 ikke ændrer eksisterende presets)
 - **Målinger** pr. render, vist som tabel: halelængde (T30/RT60, også pr. frekvensbånd), lysstyrke (spektralt tyngdepunkt, og hvor meget hurtigere diskanten dør end mellemtonen), stereobredde (korrelation over og under 150 Hz, tab ved mono-sum), niveau ind/ud, og glathed (ingen metallisk ringen, flutter eller tydelige enkelt-ekkoer i en hale der skal være glat)
 - **Startmål for karakteren** (justeres efter Henriks feedback): halen er mørk, dvs. diskanten dør klart hurtigere end mellemtonen; halen er tæt og glat uden ringen; stereo er bred over 150 Hz og mono under; bevægelsen er langsom og blød, uden hørbar pitch-vibrato
 - Henriks ord oversættes til målbare ændringer ("for lys" -> lavere tyngdepunkt / hurtigere diskant-dæmpning) og vises som før/efter-tabel
@@ -107,21 +107,21 @@ Der er **ingen referenceoptagelser**. Henrik optager ikke noget gennem SuperMass
 
 ## Genbrug fra søsterprojekter
 
-Ved siden af ligger `../SpaceForge` (version 1), `../SubForge` og `../BleepForge`. De er **skrivebeskyttede**: læs og kopiér, ændr aldrig.
+Ved siden af ligger `../protoSpaceForge` (version 1), `../SubForge` og `../BleepForge`. De er **skrivebeskyttede**: læs og kopiér, ændr aldrig.
 
-Fra `../SpaceForge` hentes især: det visuelle design og animationerne, preset-browseren (søgning, favoritter, kategorier), terning med fortryd, sikkerheds-hærdningen, build-opsætningen (CMake, JUCE, CLAP, pluginval) og visning af værdier i rigtige enheder.
+Fra `../protoSpaceForge` hentes især: det visuelle design og animationerne, preset-browseren (søgning, favoritter, kategorier), terning med fortryd, sikkerheds-hærdningen, build-opsætningen (CMake, JUCE, CLAP, pluginval) og visning af værdier i rigtige enheder.
 
-Fra `../SpaceForge` hentes **ikke**: CloudReverb, Grains, Delay, den gamle MacroMapper, de 54 presets og tests kalibreret til den gamle motor.
+Fra `../protoSpaceForge` hentes **ikke**: CloudReverb, Grains, Delay, den gamle MacroMapper, de 54 presets og tests kalibreret til den gamle motor.
 
 Kopieret kode tilpasses det nye projekt; kopiér ikke hele filer blindt. Notér oprindelsen i `THIRD_PARTY.md`.
 
 ## Faser
 
-1. **Licenser og skelet**: verificér licenserne for CloudSeedCore og Clouds/stmlib og rapportér. Derefter projektskelet med build-opsætning fra `../SpaceForge`, `LICENSE`, `THIRD_PARTY.md`
+1. **Licenser og skelet**: verificér licenserne for CloudSeedCore og Clouds/stmlib og rapportér. Derefter projektskelet med build-opsætning fra `../protoSpaceForge`, `LICENSE`, `THIRD_PARTY.md`
 2. **Cloud Seed alene** + Mix + Freeze + testlyde, offline render og målinger (se Lydmål og måling). Justér selv mod startmålene. **Stop: Henrik lytter.** Ingen videre før han siger god
 3. **Clouds** ind foran Cloud Seed. **Stop: Henrik lytter**
 4. **Makro-mapping** med fælles skala og kontrakt-tests (retning + hørbar minimumseffekt). Vis tabel med værdier pr. knapposition
-5. **UI** overført fra `../SpaceForge`, tilpasset de seks kontroller
+5. **UI** overført fra `../protoSpaceForge`, tilpasset de seks kontroller
 6. **Presets**: CC genererer målte kandidater, Henrik sorterer dem med K/S, CC foreslår navne
 7. Polering, pluginval, release
 
@@ -129,7 +129,7 @@ Afslut hver fase med: build uden warnings, tests grønne, målinger vist, og en 
 
 ## Licens
 
-- SpaceForge 2 udgives under **AGPLv3**; JUCE bruges under AGPLv3
+- SpaceForge udgives under **AGPLv3**; JUCE bruges under AGPLv3
 - `LICENSE` i roden; hver kildefil starter med `// SPDX-License-Identifier: AGPL-3.0-or-later`
 - Kun AGPLv3-kompatible afhængigheder (fx MIT, BSD, ISC, Zlib, Apache 2.0, LGPL, GPLv3). Ukendt eller uklar licens: brug den ikke, spørg
 - Aldrig kode fra repos uden licens, fra lukkede produkter eller dekompileret materiale

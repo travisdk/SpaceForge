@@ -1,4 +1,4 @@
-// Copyright (C) 2026 Henrik Juhl. Part of SpaceForge 2, licensed under the GNU AGPLv3 (see LICENSE).
+// Copyright (C) 2026 Henrik Juhl. Part of SpaceForge, licensed under the GNU AGPLv3 (see LICENSE).
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 #pragma once
@@ -8,7 +8,7 @@
 
 namespace spaceforge::dsp
 {
-// The fixed part of SpaceForge 2's sound: everything no knob moves, in real units (ms, Hz, dB).
+// The fixed part of SpaceForge's sound: everything no knob moves, in real units (ms, Hz, dB).
 // Tuned by measurement towards long, soft, dark and floating tails and approved by Henrik by
 // ear. What the knobs move is in MacroSettings (dsp/Macros.h).
 struct SpaceVoicing

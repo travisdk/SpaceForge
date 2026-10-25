@@ -1,4 +1,4 @@
-// Copyright (C) 2026 Henrik Juhl. Part of SpaceForge 2, licensed under the GNU AGPLv3 (see LICENSE).
+// Copyright (C) 2026 Henrik Juhl. Part of SpaceForge, licensed under the GNU AGPLv3 (see LICENSE).
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 #include "plugin/PluginEditor.h"
@@ -277,7 +277,7 @@ SpaceForgeEditor::SpaceForgeEditor (SpaceForgeProcessor& p)
     logo.setText ("S P A C E F O R G E   2", juce::dontSendNotification);
     logo.setFont (theme::font (15.0f, true));
     logo.setColour (juce::Label::textColourId, theme::glow);
-    logo.setTooltip (juce::String ("SpaceForge 2 ") + SPACEFORGE_VERSION_STRING + " - free software under the GNU AGPLv3");
+    logo.setTooltip (juce::String ("SpaceForge ") + SPACEFORGE_VERSION_STRING + " - free software under the GNU AGPLv3");
     content.addAndMakeVisible (logo);
 
     for (auto* label : { &sortTitle, &sortHelp })
@@ -473,7 +473,7 @@ void SpaceForgeEditor::showSettingsMenu()
     });
     menu.addItem ("Rescan presets", [this] { processor.presetsChanged(); });
     menu.addSeparator();
-    menu.addItem ("About SpaceForge 2...", [this] { showAbout(); });
+    menu.addItem ("About SpaceForge...", [this] { showAbout(); });
     menu.addItem ("Version " SPACEFORGE_VERSION_STRING, false, false, {});
     menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&gear).withMinimumWidth (200).withDeletionCheck (*this));
 }
@@ -603,10 +603,10 @@ void SpaceForgeEditor::deletePreset()
 
 juce::String SpaceForgeEditor::aboutText()
 {
-    return juce::String::fromUTF8 ("SpaceForge 2 " SPACEFORGE_VERSION_STRING "\n"
+    return juce::String::fromUTF8 ("SpaceForge " SPACEFORGE_VERSION_STRING "\n"
                                    "© 2026 Henrik Juhl. Free software under the GNU Affero General Public License v3 or later.\n\n"
                                    "The rooms use the Cloud Seed algorithm by Ghost Note Audio (CloudSeedCore, MIT), "
-                                   "originally by Valdemar Erlingsson. SpaceForge 2 is not a Ghost Note Audio product.\n"
+                                   "originally by Valdemar Erlingsson. SpaceForge is not a Ghost Note Audio product.\n"
                                    "The granular texture uses the Clouds DSP code and stmlib by Emilie Gillet (MIT).\n"
                                    "Built with JUCE (AGPLv3) and clap-juce-extensions (MIT).\n\n"
                                    "Full notices: THIRD_PARTY.md in the source.");
@@ -614,7 +614,7 @@ juce::String SpaceForgeEditor::aboutText()
 
 void SpaceForgeEditor::showAbout()
 {
-    juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::NoIcon, "About SpaceForge 2", aboutText(), "Close", this);
+    juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::NoIcon, "About SpaceForge", aboutText(), "Close", this);
 }
 
 bool SpaceForgeEditor::keyPressed (const juce::KeyPress& key)

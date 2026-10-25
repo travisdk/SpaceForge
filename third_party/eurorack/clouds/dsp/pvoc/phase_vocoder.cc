@@ -59,7 +59,7 @@ void PhaseVocoder::Init(
   size_t num_textures = kMaxNumTextures;
   size_t texture_size = (fft_size >> 1) - kHighFrequencyTruncation;
   for (int32_t i = 0; i < num_channels_; ++i) {
-    float* ana_syn_buffer = allocator[i]->Allocate<float>( // SpaceForge 2: floats
+    float* ana_syn_buffer = allocator[i]->Allocate<float>( // SpaceForge: floats
         (fft_size + (fft_size >> 1)) * 2);
     
     num_textures = min(

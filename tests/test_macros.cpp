@@ -1,4 +1,4 @@
-// Copyright (C) 2026 Henrik Juhl. Part of SpaceForge 2, licensed under the GNU AGPLv3 (see LICENSE).
+// Copyright (C) 2026 Henrik Juhl. Part of SpaceForge, licensed under the GNU AGPLv3 (see LICENSE).
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 // The macro contract: every knob works in its direction with a clearly audible minimum effect,

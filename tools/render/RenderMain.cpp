@@ -1,7 +1,7 @@
-// Copyright (C) 2026 Henrik Juhl. Part of SpaceForge 2, licensed under the GNU AGPLv3 (see LICENSE).
+// Copyright (C) 2026 Henrik Juhl. Part of SpaceForge, licensed under the GNU AGPLv3 (see LICENSE).
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// sf2_render: renders the test sounds through SpaceForge 2's engine to WAV files and prints the
+// sf2_render: renders the test sounds through SpaceForge's engine to WAV files and prints the
 // measurements against the targets. Offline, no plug-in host needed.
 //
 //   sf2_render [--out DIR] [--no-wav] [--macro name=value ...] [--set name=value ...]

@@ -98,7 +98,7 @@ class Grain {
       if (use_lut_for_envelope) {
         if (quality == GRAIN_QUALITY_HIGH) {
           float window = 0.0f;
-          // SpaceForge 2: at the grain's peak gain is exactly 1.0, and the lookup
+          // SpaceForge: at the grain's peak gain is exactly 1.0, and the lookup
           // read one entry past the 4097-entry table. Clamped just below the end.
           window = stmlib::Interpolate(
               lut_window, gain < 0.0f ? 0.0f : (gain > 0.9999f ? 0.9999f : gain), 4096.0f);
