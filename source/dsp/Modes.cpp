@@ -138,12 +138,12 @@ SpaceVoicing spectral()
 
 const std::array<ModeSetup, kNumModes> kModes { {
     // name, description, voicing, decay span, sky feed dB at 0 and 100 %, sky out dB at 0/50/100 %, sky carries
-    { "Sky", "Mørkt rum med en granulær sky, der holder sig selv i live", sky(), 17.8, -40.0, -13.0, { -24.0, -9.0, -6.0 }, true },
-    { "Hall", "Klar stor hal med tydelige tidlige refleksioner", hall(), 6.0, -40.0, -12.0, { -30.0, -18.0, -12.0 }, false },
-    { "Plate", "Tæt, mørk plade der bygger hurtigt op", plate(), 5.0, -40.0, -16.0, { -30.0, -20.0, -14.0 }, false },
-    { "Shimmer", "Lys oktav-sky, der stiger over halen", shimmer(), 10.0, -40.0, -3.0, { -30.0, -12.0, -8.0 }, false },
-    { "Smear", "Langsom, tape-agtig udtværing af lange linjer", smear(), 10.0, -30.0, -4.0, { -30.0, -12.0, -8.0 }, true },
-    { "Spectral", "Glasagtig, frossen klangflade", spectral(), 10.0, -40.0, -5.0, { -30.0, -12.0, -8.0 }, true },
+    { "Sky", "Dark room with a granular cloud that keeps itself alive", sky(), 17.8, -40.0, -13.0, { -24.0, -9.0, -6.0 }, true },
+    { "Hall", "Clear, large hall with distinct early reflections", hall(), 6.0, -40.0, -12.0, { -30.0, -18.0, -12.0 }, false },
+    { "Plate", "Dense, dark plate that builds up quickly", plate(), 5.0, -40.0, -16.0, { -30.0, -20.0, -14.0 }, false },
+    { "Shimmer", "Bright octave cloud rising above the tail", shimmer(), 10.0, -40.0, -3.0, { -30.0, -12.0, -8.0 }, false },
+    { "Smear", "Slow, tape-like smear of long lines", smear(), 10.0, -30.0, -4.0, { -30.0, -12.0, -8.0 }, true },
+    { "Spectral", "Glassy, frozen sound surface", spectral(), 10.0, -40.0, -5.0, { -30.0, -12.0, -8.0 }, true },
 } };
 } // namespace
 

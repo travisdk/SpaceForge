@@ -128,8 +128,9 @@ void CloudView::step (float dt)
 
 void CloudView::paint (juce::Graphics& g)
 {
-    // The whole picture a quarter more transparent than at first (Henrik: it filled too much).
-    constexpr float opacity = 0.75f;
+    // The picture is decoration: kept faint so the controls lead (Henrik: first a quarter more
+    // transparent, then "even more faded"; 0.75 -> 0.45).
+    constexpr float opacity = 0.45f;
     const auto bounds = getLocalBounds().toFloat();
     const float side = juce::jmin (bounds.getWidth(), bounds.getHeight());
     const auto colour = toneColour (shownTone).interpolatedWith (theme::ice, 0.7f * shownFrozen);

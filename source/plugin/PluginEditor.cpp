@@ -21,10 +21,10 @@ struct MacroInfo
     float init;
 };
 const MacroInfo kMacros[] = {
-    { plugin::kSpaceId, "Space", "Space: tæt og kort -> stort og uendeligt (halens længde og skyen)", dsp::MacroPositions::kInitSpace },
-    { plugin::kEchoId, "Echo", "Echo: intet ekko -> mange gentagelser (1/8 punkteret, ping-pong)", dsp::MacroPositions::kInitEcho },
-    { plugin::kMotionId, "Motion", "Motion: stille -> levende (svæv i halen, auto-pan i takt)", dsp::MacroPositions::kInitMotion },
-    { plugin::kToneId, "Tone", "Tone: mørk -> lys (samme lydstyrke)", dsp::MacroPositions::kInitTone },
+    { plugin::kSpaceId, "Space", "Space: tight and short -> huge and endless (the tail's length and the cloud)", dsp::MacroPositions::kInitSpace },
+    { plugin::kEchoId, "Echo", "Echo: no echo -> many repeats (dotted 1/8, ping-pong)", dsp::MacroPositions::kInitEcho },
+    { plugin::kMotionId, "Motion", "Motion: still -> alive (drift in the tail, tempo-synced auto-pan)", dsp::MacroPositions::kInitMotion },
+    { plugin::kToneId, "Tone", "Tone: dark -> bright (same loudness)", dsp::MacroPositions::kInitTone },
 };
 
 juce::String utf8 (const std::string& s) { return juce::String::fromUTF8 (s.c_str()); }
@@ -205,7 +205,7 @@ SpaceForgeEditor::SpaceForgeEditor (SpaceForgeProcessor& p)
 
     mix.setRotaryParameters (juce::MathConstants<float>::pi * 1.25f, juce::MathConstants<float>::pi * 2.75f, true);
     mix.setDoubleClickReturnValue (true, plugin::kDefaultMix);
-    mix.setTooltip (utf8 ("Mix: tør -> våd"));
+    mix.setTooltip ("Mix: dry -> wet");
     content.addAndMakeVisible (mix);
     for (auto* label : { &mixLabel, &mixValue })
     {
@@ -240,7 +240,7 @@ SpaceForgeEditor::SpaceForgeEditor (SpaceForgeProcessor& p)
     logo.setText ("S P A C E F O R G E   2", juce::dontSendNotification);
     logo.setFont (theme::font (15.0f, true));
     logo.setColour (juce::Label::textColourId, theme::glow);
-    logo.setTooltip (juce::String ("SpaceForge 2 ") + SPACEFORGE_VERSION_STRING + " - fri software under GNU AGPLv3");
+    logo.setTooltip (juce::String ("SpaceForge 2 ") + SPACEFORGE_VERSION_STRING + " - free software under the GNU AGPLv3");
     content.addAndMakeVisible (logo);
 
     for (auto* label : { &sortTitle, &sortHelp })
