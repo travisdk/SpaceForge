@@ -51,6 +51,7 @@ void CloudView::setAnimated (bool on)
         stopTimer();
         refreshStill();
     }
+    repaint(); // shown again, or cleared away
 }
 
 void CloudView::refreshStill()
@@ -128,6 +129,10 @@ void CloudView::step (float dt)
 
 void CloudView::paint (juce::Graphics& g)
 {
+    // Animations off: no picture at all (the cloud belongs to the animations).
+    if (! animated)
+        return;
+
     // The picture is decoration: kept faint so the controls lead (Henrik: first a quarter more
     // transparent, then "even more faded"; 0.75 -> 0.45).
     constexpr float opacity = 0.45f;

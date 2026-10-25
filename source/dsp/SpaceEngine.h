@@ -8,6 +8,7 @@
 #include "dsp/EchoEngine.h"
 #include "dsp/Macros.h"
 #include "dsp/SpaceVoicing.h"
+#include "dsp/StereoDelay.h"
 #include "dsp/TextureEngine.h"
 
 namespace Cloudseed
@@ -27,6 +28,9 @@ namespace spaceforge::dsp
 // - The four macros move the sound; their positions are smoothed (no clicks from a jump).
 // - A new Mode (MacroPositions::mode) fades the wet signal out (20 ms), switches the room and the
 //   sky to the Mode's setup with nothing of the old tail left, and fades back in.
+// - Echo (StereoDelay) is a second, sharp delay beside Reflect: its repeats go into the room and are
+//   also heard beside it. Duck pulls the whole wet signal down while the input plays. Both are
+//   off at 0 and then change nothing at all (bit for bit).
 // - Freeze stops new input entering the room and holds what is in it.
 // - The wet signal is mono below SpaceVoicing::monoBassHz.
 //
@@ -83,6 +87,7 @@ private:
     void applySettings (const MacroSettings& s, bool force);
     void applyFreeze (bool on);
     void processChunk();
+    void setDelayTimes();
 
     std::unique_ptr<Cloudseed::ReverbChannel> left, right;
     SpaceVoicing currentVoicing;
@@ -96,9 +101,10 @@ private:
 
     TextureEngine texture;
     EchoEngine echo;
+    StereoDelay delay;
     // Per chunk: the dry input, its gain into the room (Freeze), the auto-pan, the grains, the
     // echoes, the room's output.
-    std::array<float, kMaxChunk> inL {}, inR {}, inGain {}, panGainL {}, panGainR {}, grainsL {}, grainsR {}, echoL {}, echoR {}, wetL {}, wetR {};
+    std::array<float, kMaxChunk> inL {}, inR {}, inGain {}, panGainL {}, panGainR {}, grainsL {}, grainsR {}, echoL {}, echoR {}, delayL {}, delayR {}, wetL {}, wetR {};
 
     // High-pass on the wet side signal (makes the bass mono), and the mid split into bass and the
     // rest (the auto-pan leaves the bass in the middle); two second-order stages each.
@@ -120,7 +126,7 @@ private:
     // The gains applied in the last chunk (each chunk glides from these to the new ones).
     struct Gains
     {
-        float send = 0.0f, skyFeed = 0.0f, skyOut = 0.0f, wet = 1.0f;
+        float send = 0.0f, skyFeed = 0.0f, skyOut = 0.0f, wet = 1.0f, delaySend = 0.0f;
     } gains;
     Gains gainsNow() const;
     // The sky (see SpaceVoicing): the room's last output, which the grains take from, and its
@@ -130,6 +136,9 @@ private:
 
     // Tone's finish (treble shelf after the room).
     float tiltCoeff = 0.0f, tiltGain = 0.0f, tiltLowL = 0.0f, tiltLowR = 0.0f;
+
+    // Duck: the input's envelope (fast up, slow down) and the wet gain it gives, per sample.
+    float duckEnv = 0.0f, duckAttack = 0.0f, duckRelease = 0.0f, duckGain = 1.0f;
 
     // Auto-pan (Motion): position in quarter notes, advanced per sample.
     double bpm = 120.0, ppq = 0.0;

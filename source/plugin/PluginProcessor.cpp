@@ -15,7 +15,10 @@ SpaceForgeProcessor::SpaceForgeProcessor()
       apvts (*this, nullptr, "PARAMS", createParameterLayout())
 {
     spaceValue = apvts.getRawParameterValue (plugin::kSpaceId);
-    echoValue = apvts.getRawParameterValue (plugin::kEchoId);
+    reflectValue = apvts.getRawParameterValue (plugin::kReflectId);
+    delayValue = apvts.getRawParameterValue (plugin::kDelayId);
+    delayNoteValue = apvts.getRawParameterValue (plugin::kDelayNoteId);
+    duckValue = apvts.getRawParameterValue (plugin::kDuckId);
     motionValue = apvts.getRawParameterValue (plugin::kMotionId);
     toneValue = apvts.getRawParameterValue (plugin::kToneId);
     mixValue = apvts.getRawParameterValue (plugin::kMixId);
@@ -30,6 +33,12 @@ int SpaceForgeProcessor::currentMode() const
 {
     const float v = modeValue != nullptr ? modeValue->load() : 0.0f;
     return std::isfinite (v) ? std::clamp ((int) std::lround (v), 0, dsp::kNumModes - 1) : 0;
+}
+
+int SpaceForgeProcessor::currentDelayNote() const
+{
+    const float v = delayNoteValue != nullptr ? delayNoteValue->load() : (float) dsp::MacroPositions::kInitDelayNote;
+    return std::isfinite (v) ? std::clamp ((int) std::lround (v), 0, dsp::kNumDelayNotes - 1) : dsp::MacroPositions::kInitDelayNote;
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout SpaceForgeProcessor::createParameterLayout()
@@ -67,9 +76,17 @@ juce::AudioProcessorValueTreeState::ParameterLayout SpaceForgeProcessor::createP
     using dsp::MacroPositions;
     // Space shows the seconds of the Mode in use (each Mode has its own range).
     macro (plugin::kSpaceId, "Space", MacroPositions::kInitSpace, [this] (float v) { return dsp::describeSpace (v, currentMode()); });
-    macro (plugin::kEchoId, "Echo", MacroPositions::kInitEcho, dsp::describeEcho);
+    macro (plugin::kReflectId, "Reflect", MacroPositions::kInitReflect, dsp::describeReflect);
     macro (plugin::kMotionId, "Motion", MacroPositions::kInitMotion, dsp::describeMotion);
     macro (plugin::kToneId, "Tone", MacroPositions::kInitTone, dsp::describeTone);
+    // The two small controls, both off (0) by default: Echo shows its note and repeats, Duck the dB.
+    macro (plugin::kDelayId, "Echo", MacroPositions::kInitDelay, [this] (float v) { return dsp::describeDelay (v, currentDelayNote()); });
+    macro (plugin::kDuckId, "Duck", MacroPositions::kInitDuck, dsp::describeDuck);
+    juce::StringArray noteNames;
+    for (int n = 0; n < dsp::kNumDelayNotes; ++n)
+        noteNames.add (dsp::delayNoteName (n));
+    params.push_back (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID { plugin::kDelayNoteId, 1 }, "Echo note", noteNames,
+                                                                     MacroPositions::kInitDelayNote));
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
         juce::ParameterID { plugin::kMixId, 1 }, "Mix", juce::NormalisableRange<float> (0.0f, 1.0f), plugin::kDefaultMix,
         juce::AudioParameterFloatAttributes()
@@ -91,7 +108,8 @@ void SpaceForgeProcessor::prepareToPlay (double sampleRate, int)
 
 void SpaceForgeProcessor::updateEngine()
 {
-    const dsp::MacroPositions macros { spaceValue->load(), echoValue->load(), motionValue->load(), toneValue->load(), currentMode() };
+    const dsp::MacroPositions macros { spaceValue->load(), reflectValue->load(), motionValue->load(), toneValue->load(), currentMode(),
+                                       delayValue->load(), duckValue->load(), currentDelayNote() };
     if (jumpRequested.exchange (false))
         engine.jumpToMacros (macros);
     else
@@ -226,10 +244,13 @@ void SpaceForgeProcessor::setStateInformation (const void* data, int sizeInBytes
         currentPreset.name = "Init";
     currentPreset.mode = currentMode();
     currentPreset.space = spaceValue->load();
-    currentPreset.echo = echoValue->load();
+    currentPreset.reflect = reflectValue->load();
     currentPreset.motion = motionValue->load();
     currentPreset.tone = toneValue->load();
     currentPreset.mix = mixValue->load();
+    currentPreset.delay = delayValue->load();
+    currentPreset.duck = duckValue->load();
+    currentPreset.delayNote = currentDelayNote();
     currentIndex = presetLibrary.indexOf (currentPreset.name);
     rolls.clear();
     sendChangeMessage();
@@ -246,10 +267,13 @@ void SpaceForgeProcessor::applyPreset (const Preset& preset)
     };
     set (plugin::kModeId, (float) preset.mode);
     set (plugin::kSpaceId, preset.space);
-    set (plugin::kEchoId, preset.echo);
+    set (plugin::kReflectId, preset.reflect);
     set (plugin::kMotionId, preset.motion);
     set (plugin::kToneId, preset.tone);
     set (plugin::kMixId, preset.mix);
+    set (plugin::kDelayId, preset.delay);
+    set (plugin::kDelayNoteId, (float) preset.delayNote);
+    set (plugin::kDuckId, preset.duck);
     currentPreset = preset;
     currentIndex = presetLibrary.indexOfKey (preset.key());
     rolls.clear();
@@ -317,10 +341,13 @@ bool SpaceForgeProcessor::saveUserPreset (const juce::String& name)
     p.mode = currentMode();
     const auto k = knobs();
     p.space = k[0];
-    p.echo = k[1];
+    p.reflect = k[1];
     p.motion = k[2];
     p.tone = k[3];
     p.mix = mixValue->load();
+    p.delay = delayValue->load();
+    p.delayNote = currentDelayNote();
+    p.duck = duckValue->load();
     const int index = presetLibrary.saveUserPreset (p);
     if (index < 0)
         return false;
@@ -334,7 +361,7 @@ bool SpaceForgeProcessor::saveUserPreset (const juce::String& name)
 
 MacroKnobs SpaceForgeProcessor::knobs() const
 {
-    return { spaceValue->load(), echoValue->load(), motionValue->load(), toneValue->load() };
+    return { spaceValue->load(), reflectValue->load(), motionValue->load(), toneValue->load() };
 }
 
 void SpaceForgeProcessor::setKnobs (const MacroKnobs& k, int mode)
@@ -347,7 +374,7 @@ void SpaceForgeProcessor::setKnobs (const MacroKnobs& k, int mode)
             param->setValueNotifyingHost (param->convertTo0to1 ((float) mode));
             param->endChangeGesture();
         }
-    const char* ids[] = { plugin::kSpaceId, plugin::kEchoId, plugin::kMotionId, plugin::kToneId };
+    const char* ids[] = { plugin::kSpaceId, plugin::kReflectId, plugin::kMotionId, plugin::kToneId };
     for (size_t m = 0; m < k.size(); ++m)
         if (auto* param = apvts.getParameter (ids[m]))
         {
@@ -388,10 +415,13 @@ bool SpaceForgeProcessor::presetUnchanged() const
     Preset now = currentPreset;
     now.mode = currentMode();
     now.space = spaceValue->load();
-    now.echo = echoValue->load();
+    now.reflect = reflectValue->load();
     now.motion = motionValue->load();
     now.tone = toneValue->load();
     now.mix = mixValue->load();
+    now.delay = delayValue->load();
+    now.delayNote = currentDelayNote();
+    now.duck = duckValue->load();
     return now.sameSound (currentPreset);
 }
 

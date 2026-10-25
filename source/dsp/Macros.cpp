@@ -52,7 +52,7 @@ std::string dots (double x, const char* left, const char* right)
 } // namespace
 
 
-int echoRepeats (double feedback)
+int reflectRepeats (double feedback)
 {
     if (feedback <= 0.0)
         return 1;
@@ -78,10 +78,27 @@ MacroSettings mapMacros (const MacroPositions& p)
     s.spaceSkyOutDb = through (space, mode.skyOutDb[0], 0.5, mode.skyOutDb[1], mode.skyOutDb[2]);
     s.spaceGainDb = table (kSpaceGainDb[m], space);
 
-    const double echo = clamp01 (p.echo);
-    s.echoSend = std::min (1.0, echo / 0.2);
-    s.echoFeedback = echo > 0.0 ? 0.15 + 0.7 * echo : 0.0;
-    s.echoGainDb = table (kEchoGainDb[m], echo);
+    const double echo = clamp01 (p.reflect);
+    s.reflectSend = std::min (1.0, echo / 0.2);
+    s.reflectFeedback = echo > 0.0 ? 0.15 + 0.7 * echo : 0.0;
+    s.reflectGainDb = table (kReflectGainDb[m], echo);
+
+    // Echo (small control): the same scale in every Mode. Off at 0; from 15 % the repeats are at
+    // full level, and the knob then adds repeats (feedback) up to many.
+    const double delay = clamp01 (p.delay);
+    s.delaySend = std::min (1.0, delay / 0.15);
+    s.delayFeedback = delay > 0.0 ? 0.2 + 0.6 * delay : 0.0;
+    s.delayBeats = delayNoteBeats (p.delayNote);
+    // The repeats add up to 1-5 dB in the Modes (sent in full beside the room), more with more repeats: compensated by one
+    // curve for all (measured per Mode in tests/test_echoduck.cpp, all within 3 dB).
+    s.delayGainDb = through (delay, 0.0, 0.15, -2.8, -4.5);
+    // The repeats are heard straight out at 1.6 x (SpaceEngine): the Modes' wet levels differ, so
+    // each gets its own trim (measured in tests/test_echoduck.cpp, order of the Modes).
+    constexpr double kDelayModeDb[kNumModes] = { -2.7, -1.5, -0.2, 1.0, -4.4, -4.3 };
+    s.delayGainDb += kDelayModeDb[m] * std::min (1.0, delay / 0.15);
+
+    // Duck (small control): 0 to 12 dB, the same in every Mode.
+    s.duckDepthDb = 12.0 * clamp01 (p.duck);
 
     const double motion = clamp01 (p.motion);
     // Most of the modulation comes early (Henrik heard nothing below 75 %); the top stays under
@@ -127,19 +144,55 @@ std::string describeSpace (float position, int mode)
     return text;
 }
 
-std::string describeEcho (float position)
+std::string describeReflect (float position)
 {
     const auto s = mapMacros ({ MacroPositions::kInitSpace, position, MacroPositions::kInitMotion, MacroPositions::kInitTone });
-    if (s.echoSend <= 0.0)
+    if (s.reflectSend <= 0.0)
         return "no echo";
-    return "1/8d · " + std::to_string (echoRepeats (s.echoFeedback)) + "x";
+    return "1/8d · " + std::to_string (reflectRepeats (s.reflectFeedback)) + "x";
+}
+
+namespace
+{
+struct DelayNote
+{
+    const char* name;
+    double beats;
+};
+constexpr DelayNote kDelayNotes[kNumDelayNotes] = { { "1/16", 0.25 }, { "1/8", 0.5 }, { "1/8d", 0.75 }, { "1/4", 1.0 }, { "1/4d", 1.5 } };
+} // namespace
+
+const char* delayNoteName (int note) { return kDelayNotes[std::clamp (note, 0, kNumDelayNotes - 1)].name; }
+double delayNoteBeats (int note) { return kDelayNotes[std::clamp (note, 0, kNumDelayNotes - 1)].beats; }
+
+// The loop's high-pass and low-pass take about 1.5 dB off every pass besides the feedback, so
+// the repeats that can be heard are counted with a loop gain of 0.85 times the feedback.
+int delayRepeats (double feedback) { return reflectRepeats (0.85 * feedback); }
+
+std::string describeDelay (float position, int note)
+{
+    const auto s = mapMacros ({ MacroPositions::kInitSpace, MacroPositions::kInitReflect, MacroPositions::kInitMotion, MacroPositions::kInitTone,
+                                0, position, MacroPositions::kInitDuck, note });
+    if (s.delaySend <= 0.0)
+        return "off · " + std::string (delayNoteName (note));
+    return std::string (delayNoteName (note)) + " · " + std::to_string (delayRepeats (s.delayFeedback)) + "x";
+}
+
+std::string describeDuck (float position)
+{
+    const double db = 12.0 * clamp01 (position);
+    if (db <= 0.0)
+        return "off";
+    char text[16];
+    std::snprintf (text, sizeof (text), "%.0f dB", db);
+    return text;
 }
 
 std::string describeMotion (float position)
 {
     if (position < 0.02f)
         return "still";
-    const auto s = mapMacros ({ MacroPositions::kInitSpace, MacroPositions::kInitEcho, position, MacroPositions::kInitTone });
+    const auto s = mapMacros ({ MacroPositions::kInitSpace, MacroPositions::kInitReflect, position, MacroPositions::kInitTone });
     auto text = dots (position, "still", "alive");
     if (s.motionPanDepth > 0.0)
         text += s.motionPanBars == 0 ? " · pan ½ bar" : " · pan " + std::to_string (s.motionPanBars) + (s.motionPanBars == 1 ? " bar" : " bars");

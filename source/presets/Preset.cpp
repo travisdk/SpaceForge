@@ -9,7 +9,8 @@ namespace spaceforge
 bool Preset::sameSound (const Preset& o) const
 {
     auto near = [] (float a, float b) { return std::abs (a - b) < 0.005f; };
-    return mode == o.mode && near (space, o.space) && near (echo, o.echo) && near (motion, o.motion) && near (tone, o.tone) && near (mix, o.mix);
+    return mode == o.mode && near (space, o.space) && near (reflect, o.reflect) && near (motion, o.motion) && near (tone, o.tone) && near (mix, o.mix)
+           && near (delay, o.delay) && near (duck, o.duck) && delayNote == o.delayNote;
 }
 
 namespace presets
@@ -64,10 +65,16 @@ std::optional<Preset> fromJson (const juce::String& text)
         if (mode == dsp::modeSetup (m).name)
             p.mode = m;
     p.space = unit (root.getProperty ("space", {}), p.space);
-    p.echo = unit (root.getProperty ("echo", {}), p.echo);
+    p.reflect = unit (root.getProperty ("echo", {}), p.reflect);
     p.motion = unit (root.getProperty ("motion", {}), p.motion);
     p.tone = unit (root.getProperty ("tone", {}), p.tone);
     p.mix = unit (root.getProperty ("mix", {}), p.mix);
+    p.delay = unit (root.getProperty ("delay", {}), p.delay);
+    p.duck = unit (root.getProperty ("duck", {}), p.duck);
+    const auto note = root.getProperty ("delayNote", "").toString();
+    for (int n = 0; n < dsp::kNumDelayNotes; ++n)
+        if (note == dsp::delayNoteName (n))
+            p.delayNote = n;
     return p;
 }
 
@@ -88,10 +95,13 @@ juce::String toJson (const Preset& p)
     root->setProperty ("name", sanitiseName (p.name));
     root->setProperty ("mode", dsp::modeSetup (p.mode).name);
     root->setProperty ("space", tidy (p.space));
-    root->setProperty ("echo", tidy (p.echo));
+    root->setProperty ("echo", tidy (p.reflect));
     root->setProperty ("motion", tidy (p.motion));
     root->setProperty ("tone", tidy (p.tone));
     root->setProperty ("mix", tidy (p.mix));
+    root->setProperty ("delay", tidy (p.delay));
+    root->setProperty ("delayNote", dsp::delayNoteName (p.delayNote));
+    root->setProperty ("duck", tidy (p.duck));
     return juce::JSON::toString (rootVar, false, 4) + "\n";
 }
 

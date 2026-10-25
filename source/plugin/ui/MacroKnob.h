@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <functional>
 #include <juce_audio_processors/juce_audio_processors.h>
 
 // A big rotary control for one of the fixed macros (from SpaceForge 1): its name underneath and,
@@ -26,6 +27,9 @@ public:
     void paint (juce::Graphics&) override;
     void mouseEnter (const juce::MouseEvent&) override { repaint(); }
     void mouseExit (const juce::MouseEvent&) override { repaint(); }
+    void mouseDown (const juce::MouseEvent&) override;
+    // Clicking the text under the knob (not the knob): for a fixed choice shown there (Echo's note).
+    std::function<void()> onTextClick;
 
     // what is shown under the knob (for the tests: the same as the DAW's text)
     const juce::String& getValueText() const { return valueText; }

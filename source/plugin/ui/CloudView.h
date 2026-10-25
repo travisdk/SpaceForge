@@ -40,8 +40,8 @@ public:
 
     // For screenshots and tests: advance the animation by `seconds` without waiting.
     void advance (float seconds);
-    // Animations off (settings): the picture stands still and only follows the knobs, without
-    // drifting, glowing or rings. refreshStill() takes the current state (call it now and then).
+    // Animations off (settings): no picture at all, nothing drawn and nothing moving.
+    // refreshStill() keeps the state current for when it is switched on again.
     void setAnimated (bool on);
     bool isAnimated() const { return animated; }
     void refreshStill();

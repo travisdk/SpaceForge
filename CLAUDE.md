@@ -25,8 +25,8 @@ Begge licenser **skal verificeres som det allerførste** (se Licens). Er en af d
 - Algoritmisk reverb til enorme, endeløse rum og modulerede ekkoer; bygget som specialeffekt til tykke pads ud fra simple lyde
 - Kernen: https://github.com/GhostNoteAudio/CloudSeedCore
 - Original (MIT): https://github.com/ValdemarOrn/CloudSeed
-- Har sine egne delaylinjer, tidlige refleksioner og modulation. Brug dem til Echo, før der overvejes et separat delay
-- (Fase 4: Cloud Seeds delaylinjer giver kun tilfældigt spredte refleksioner, ikke rytmiske ekkoer synket til tempo. Echo er derfor et lille ping-pong-delay, `source/dsp/EchoEngine.*`, foran rummet og ved siden af det)
+- Har sine egne delaylinjer, tidlige refleksioner og modulation. Brug dem til Reflect, før der overvejes et separat delay
+- (Fase 4: Cloud Seeds delaylinjer giver kun tilfældigt spredte refleksioner, ikke rytmiske ekkoer synket til tempo. Reflect er derfor et lille ping-pong-delay, `source/dsp/EchoEngine.*`, foran rummet og ved siden af det. Den lille knap Echo er et eget, skarpt stereo-delay, `source/dsp/StereoDelay.*`, se Kontroller)
 
 **Mutable Instruments Clouds** (granulær tekstur, SOL-delen)
 - "Texture synthesizer": granulær motor med feedback, spredning og indbygget reverb
@@ -50,7 +50,7 @@ Kan Clouds' egen reverb gøre Cloud Seed overflødig i nogle presets, eller omve
 
 ## Kontroller
 
-Kun disse i v1: **Mode, Space, Echo, Motion, Tone, Mix.** (Freeze er taget ud indtil videre på Henriks ønske, som i SpaceForge 1; den ligger på branchen `feature/freeze` til evt. senere genindførelse, og motoren har den stadig.) Nye knapper tilføjes kun, når Henrik beder om dem efter at have lyttet. (Mode blev tilføjet på Henriks ønske: med kun fire makroer lød alle presets som den samme lyd.)
+Kun disse: **Mode, Space, Reflect, Motion, Tone, Mix**, plus de to små knapper **Echo** og **Duck** (se nedenfor). (Reflect hed tidligere Echo: kun navn og hover-tekst er ændret, parameter-ID og preset-nøgle er stadig `echo`, så gamle presets og DAW-projekter virker uændret. Freeze er taget ud indtil videre på Henriks ønske, som i SpaceForge 1; den ligger på branchen `feature/freeze` til evt. senere genindførelse, og motoren har den stadig.) Nye knapper tilføjes kun, når Henrik beder om dem efter at have lyttet. (Mode blev tilføjet på Henriks ønske: med kun fire makroer lød alle presets som den samme lyd.)
 
 **Mode** er én synlig vælger med 6 karakterer (`source/dsp/Modes.cpp`): hver er en fast intern opsætning af Cloud Seed (fra Cloud Seeds factory-presets) og Clouds (dens fire tilstande). Henriks regler:
 - Inden for én Mode er skalaen fast og ens for alle presets. Kun Mode må ændre en knaps spænd, aldrig et preset
@@ -62,15 +62,18 @@ Kun disse i v1: **Mode, Space, Echo, Motion, Tone, Mix.** (Freeze er taget ud in
 Makroerne har **faste roller og fast retning i alle Modes, og inden for en Mode én fælles absolut skala i alle presets.** En knapposition betyder altid det samme, uanset preset. Højre er altid "mere".
 
 - **Space**: tæt og kort -> stort og uendeligt. Styrer decay og stereobredde (ikke delaylinjernes længde: at ændre den, mens der er lyd i linjerne, klikker; målt i fase 4)
-- **Echo**: intet ekko -> mange gentagelser. Styrer ekko-mængde og feedback
+- **Reflect**: intet -> mange gentagelser der smelter ind i rummet (ping-pong, 1/8 punkteret). Styrer mængde og feedback
 - **Motion**: stille -> levende. Styrer modulation, granulær aktivitet og tempo-synket auto-pan
+- **Echo** (lille knap, ID `delay`): intet -> mange skarpe, tydeligt tællelige gentagelser i takt med host-tempo. Ægte stereo-delay: venstre side på nodeværdien, højre på 4/3 af den, hver med sin egen feedback-sløjfe. Feedback filtreres (højpas 150 Hz, lavpas fra Tone), så det aldrig grumser. Går parallelt med Reflect: gentagelserne høres direkte og fodrer også rummet. Knappen styrer **kun mængde og antal gentagelser, aldrig nodeværdien**. Nodeværdien (1/16, 1/8, 1/8d, 1/4, 1/4d; standard 1/8d) er et fast valg (parameter `delayNote`), gemmes i presetet og vises som tekst ved knappen (klik på teksten skifter nodeværdi). Vist som "1/8d · 3x"; ved 0 "off · 1/8d". Niveau kompenseret, så Echo højst ændrer niveauet ca. 3 dB
+- **Duck** (lille knap, ID `duck`): efterklangen trækker sig, mens der spilles, og kommer op i pauserne. Alt vådt (rum, ekko og sky) trækkes ned 0 til 12 dB (vist som "6 dB") af inputtets envelope (hurtigt angreb, 0,4 s release). Ændrer med vilje niveauet op til 12 dB, men kun mens der spilles
 - **Tone**: mørk -> lys. Klangfarve uden at ændre lydstyrken (niveaukompensation). Dæmpning i rummet og ekkoet plus en blød diskant-"finish" efter rummet (rummets sløjfe må aldrig forstærke)
 
 Regler:
+- Echo og Duck står på 0 % som standard, og på 0 % er lyden **bit for bit** den samme som uden dem (bevist med `sf2_regress`: alle presets, forskel under -100 dB). Terningen rører dem ikke
 - Hver intern parameter ejes af præcis én knap
-- Ingen makro må ændre det samlede niveau mere end ca. 3 dB
+- Ingen makro må ændre det samlede niveau mere end ca. 3 dB (Duck undtaget: den er netop en ændring af niveauet, mens der spilles)
 - Alle makroer virker i alle presets
-- Under hver knap vises værdien i rigtige enheder (fx "18 s", "1/8d · 3x", "dark ••••○ bright"), og DAW'en får de samme tekster
+- Under hver knap vises værdien i rigtige enheder (fx "18 s", "1/8d · 3x", "6 dB", "dark ••••○ bright"), og DAW'en får de samme tekster
 - **Al tekst i produktet er på engelsk, altid** (knaptekster, tooltips, menuer, dialoger, Mode-beskrivelser, DAW-tekster, sorteringstilstanden). Samtalen med Henrik er stadig på dansk
 - **Intet skjult:** et preset gemmer kun værdierne af de synlige kontroller. Har et preset brug for et valg uden egen knap (fx nodeværdi eller ping-pong), vises det som tekst ved den relevante knap
 
@@ -87,7 +90,7 @@ Regler:
 - JSON, én fil pr. preset, brugerpresets i brugerens dokumentmappe
 - Visning som i SpaceForge 1: browser til venstre (søgning, favoritter, kategorierne er Modes), navnet med forrige/næste, favorit, terning, fortryd og Save
 - Preset-skift er **rent**: lyden skifter straks med en kort crossfade (30 til 50 ms), ingen spillover. Knap-animationen er kun visuel og må aldrig få lyden til at glide. Delaytider crossfades i stedet for at glide (ingen pitch-sweep)
-- Terningen flytter de fire makroer synligt (ca. 250 ms animation), mindst to af dem mærkbart. Mix røres aldrig; Mode kun med åben Mode-lås eller Shift. Fortryd for de sidste 10 kast. Ændret preset markeres med *
+- Terningen flytter de fire makroer (Space, Reflect, Motion, Tone) synligt (ca. 250 ms animation), mindst to af dem mærkbart. Mix røres aldrig; Mode kun med åben Mode-lås eller Shift. Fortryd for de sidste 10 kast. Ændret preset markeres med *
 - **Alt der ændrer lyden, skal kunne ses i UI'et**
 
 ## Lydmål og måling
@@ -95,7 +98,7 @@ Regler:
 Der er **ingen referenceoptagelser**. Henrik optager ikke noget gennem SuperMassive eller SOL. Retningen kommer fra viden om algoritmisk reverb og delay (feedback delay networks, diffusion, modulerede delaylinjer, dæmpning i feedback-loopet) plus Henriks ord-feedback.
 
 - **Testlyde** genereres af koden selv, deterministisk: tørt klik/impuls, kort støjburst, pad-akkord, kort synth-figur, hi-hat-mønster. Ingen eksterne lydfiler
-- **Offline render**: et værktøj renderer hver testlyd gennem SpaceForge 2 til WAV i `renders/` (er i `.gitignore`), så Henrik kan lytte uden DAW
+- **Offline render**: et værktøj renderer hver testlyd gennem SpaceForge 2 til WAV i `renders/` (er i `.gitignore`), så Henrik kan lytte uden DAW (`sf2_render --echo-duck`: korte bleep-renders af Echo og Duck ved 0, 50 og 100 %; `sf2_regress dump/compare`: beviser, at nye knapper på 0 ikke ændrer eksisterende presets)
 - **Målinger** pr. render, vist som tabel: halelængde (T30/RT60, også pr. frekvensbånd), lysstyrke (spektralt tyngdepunkt, og hvor meget hurtigere diskanten dør end mellemtonen), stereobredde (korrelation over og under 150 Hz, tab ved mono-sum), niveau ind/ud, og glathed (ingen metallisk ringen, flutter eller tydelige enkelt-ekkoer i en hale der skal være glat)
 - **Startmål for karakteren** (justeres efter Henriks feedback): halen er mørk, dvs. diskanten dør klart hurtigere end mellemtonen; halen er tæt og glat uden ringen; stereo er bred over 150 Hz og mono under; bevægelsen er langsom og blød, uden hørbar pitch-vibrato
 - Henriks ord oversættes til målbare ændringer ("for lys" -> lavere tyngdepunkt / hurtigere diskant-dæmpning) og vises som før/efter-tabel

@@ -38,7 +38,7 @@ inline constexpr std::array<std::array<double, 11>, kNumModes> kSpaceGainDb { {
     { 5.51, 5.24, 4.91, 4.43, 3.57, 1.51, -0.01, -2.31, -4.32, -6.00, -7.59 },
 } };
 
-inline constexpr std::array<std::array<double, 11>, kNumModes> kEchoGainDb { {
+inline constexpr std::array<std::array<double, 11>, kNumModes> kReflectGainDb { {
     { 0.03, -0.30, -1.18, -1.21, -1.25, -1.31, -1.38, -1.49, -1.63, -1.84, -2.17 },
     { 0.03, -0.33, -1.25, -1.28, -1.32, -1.37, -1.44, -1.53, -1.66, -1.85, -2.14 },
     { 0.03, -0.29, -1.15, -1.18, -1.22, -1.28, -1.35, -1.45, -1.58, -1.78, -2.08 },

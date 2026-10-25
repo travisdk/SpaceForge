@@ -96,7 +96,7 @@ analysis::Stereo scaled (analysis::Stereo s, float db)
 
 double knobDistance (const dsp::MacroPositions& a, const dsp::MacroPositions& b, int& clearlyDifferent)
 {
-    const double d[] = { a.space - b.space, a.echo - b.echo, a.motion - b.motion, a.tone - b.tone };
+    const double d[] = { a.space - b.space, a.reflect - b.reflect, a.motion - b.motion, a.tone - b.tone };
     clearlyDifferent = 0;
     double sum = 0;
     for (const double x : d)
@@ -129,7 +129,7 @@ float readKnob (const std::string& json, const std::string& key)
 std::string presetJson (const std::string& name, const dsp::MacroPositions& k)
 {
     return "{\n    \"name\": \"" + name + "\",\n    \"mode\": \"" + dsp::modeSetup (k.mode).name + "\",\n    \"space\": " + tidy (k.space)
-           + ",\n    \"echo\": " + tidy (k.echo) + ",\n    \"motion\": " + tidy (k.motion) + ",\n    \"tone\": " + tidy (k.tone)
+           + ",\n    \"echo\": " + tidy (k.reflect) + ",\n    \"motion\": " + tidy (k.motion) + ",\n    \"tone\": " + tidy (k.tone)
            + ",\n    \"mix\": " + tidy (plugin::kDefaultMix) + "\n}\n";
 }
 } // namespace
@@ -233,7 +233,7 @@ int main (int argc, char** argv)
         }
         c.hissMarginDb = analysis::rmsDb (a, at (4.0), a.size()) - analysis::rmsDb (rest, at (4.0), rest.size());
         if (std::getenv ("SF2_VERBOSE"))
-            std::fprintf (stderr, "\n  %.2f %.2f %.2f %.2f pink %+.1f pad %+.1f peak %.1f silence %.0f hiss %.0f", c.knobs.space, c.knobs.echo, c.knobs.motion, c.knobs.tone, c.pinkDb, c.padDb, c.peakDb, c.silenceDb, c.hissMarginDb);
+            std::fprintf (stderr, "\n  %.2f %.2f %.2f %.2f pink %+.1f pad %+.1f peak %.1f silence %.0f hiss %.0f", c.knobs.space, c.knobs.reflect, c.knobs.motion, c.knobs.tone, c.pinkDb, c.padDb, c.peakDb, c.silenceDb, c.hissMarginDb);
         if (! (c.peakDb < -0.5) && ! keepAnyway)
         {
             ++failed[1];
@@ -321,7 +321,7 @@ int main (int argc, char** argv)
             name = prefix + number;
             std::ofstream (out / (name + ".json")) << presetJson ("Kandidat " + modeName + " " + number, c.knobs);
         }
-        tsv << name << '\t' << modeName << '\t' << tidy (c.knobs.space) << '\t' << tidy (c.knobs.echo) << '\t' << tidy (c.knobs.motion) << '\t'
+        tsv << name << '\t' << modeName << '\t' << tidy (c.knobs.space) << '\t' << tidy (c.knobs.reflect) << '\t' << tidy (c.knobs.motion) << '\t'
             << tidy (c.knobs.tone) << '\t' << c.pinkDb << '\t' << c.padDb << '\t' << c.peakDb << '\t' << c.silenceDb << '\t' << c.hissMarginDb
             << '\t' << c.t60 << '\t' << c.centroid << '\t' << near << '\n';
     }

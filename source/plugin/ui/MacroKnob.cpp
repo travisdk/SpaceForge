@@ -69,6 +69,13 @@ void MacroKnob::setScale (const juce::String& low, const juce::String& high, flo
     }
 }
 
+void MacroKnob::mouseDown (const juce::MouseEvent& e)
+{
+    // only a click on the text itself (events from the knob also arrive here)
+    if (onTextClick != nullptr && e.eventComponent == this && getLocalBounds().removeFromBottom (kTextHeight).contains (e.getPosition()))
+        onTextClick();
+}
+
 void MacroKnob::resized()
 {
     auto area = getLocalBounds();

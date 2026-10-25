@@ -22,9 +22,14 @@ struct MacroInfo
 };
 const MacroInfo kMacros[] = {
     { plugin::kSpaceId, "Space", "Space: tight and short -> huge and endless (the tail's length and the cloud)", dsp::MacroPositions::kInitSpace },
-    { plugin::kEchoId, "Echo", "Echo: no echo -> many repeats (dotted 1/8, ping-pong)", dsp::MacroPositions::kInitEcho },
+    { plugin::kReflectId, "Reflect", "Reflect: repeats that melt into the room (dotted 1/8, ping-pong)", dsp::MacroPositions::kInitReflect },
     { plugin::kMotionId, "Motion", "Motion: still -> alive (drift in the tail, tempo-synced auto-pan)", dsp::MacroPositions::kInitMotion },
     { plugin::kToneId, "Tone", "Tone: dark -> bright (same loudness)", dsp::MacroPositions::kInitTone },
+};
+
+const MacroInfo kSmalls[] = {
+    { plugin::kDelayId, "Echo", "Echo: distinct repeats in time with the tempo (click the text to change the note)", dsp::MacroPositions::kInitDelay },
+    { plugin::kDuckId, "Duck", "Duck: the reverb pulls back while you play, and returns in the pauses", dsp::MacroPositions::kInitDuck },
 };
 
 juce::String utf8 (const std::string& s) { return juce::String::fromUTF8 (s.c_str()); }
@@ -217,6 +222,24 @@ SpaceForgeEditor::SpaceForgeEditor (SpaceForgeProcessor& p)
         content.addAndMakeVisible (*macros[(size_t) m]);
     }
 
+    for (int k = 0; k < 2; ++k)
+    {
+        const auto& info = kSmalls[k];
+        smalls[(size_t) k] = std::make_unique<MacroKnob> (p.parameters(), info.id, info.name, utf8 (info.hint), accents[k == 0 ? 3 : 1], info.init);
+        content.addAndMakeVisible (*smalls[(size_t) k]);
+    }
+    // Echo's note is a fixed choice with no knob of its own: click its text to step through them.
+    smalls[0]->onTextClick = [this] {
+        if (auto* param = processor.parameters().getParameter (plugin::kDelayNoteId))
+        {
+            const int following = (juce::roundToInt (valueOf (processor.parameters(), plugin::kDelayNoteId)) + 1) % dsp::kNumDelayNotes;
+            param->beginChangeGesture();
+            param->setValueNotifyingHost (param->convertTo0to1 ((float) following));
+            param->endChangeGesture();
+            timerCallback();
+        }
+    };
+
     mix.setRotaryParameters (juce::MathConstants<float>::pi * 1.25f, juce::MathConstants<float>::pi * 2.75f, true);
     mix.setDoubleClickReturnValue (true, plugin::kDefaultMix);
     mix.setTooltip ("Mix: dry -> wet");
@@ -334,13 +357,15 @@ void SpaceForgeEditor::updateFromPreset()
 void SpaceForgeEditor::timerCallback()
 {
     const auto& apvts = processor.parameters();
-    const float space = valueOf (apvts, plugin::kSpaceId), echo = valueOf (apvts, plugin::kEchoId);
+    const float space = valueOf (apvts, plugin::kSpaceId), echo = valueOf (apvts, plugin::kReflectId);
     const float motion = valueOf (apvts, plugin::kMotionId), tone = valueOf (apvts, plugin::kToneId);
     const int mode = shownMode();
     for (int m = 0; m < dsp::kNumModes; ++m)
         modeButtons[(size_t) m]->setToggleState (m == mode, juce::dontSendNotification);
     macros[0]->setValueText (utf8 (dsp::describeSpace (space, mode)));
-    macros[1]->setValueText (utf8 (dsp::describeEcho (echo)));
+    macros[1]->setValueText (utf8 (dsp::describeReflect (echo)));
+    smalls[0]->setValueText (utf8 (dsp::describeDelay (valueOf (apvts, plugin::kDelayId), juce::roundToInt (valueOf (apvts, plugin::kDelayNoteId)))));
+    smalls[1]->setValueText (utf8 (dsp::describeDuck (valueOf (apvts, plugin::kDuckId))));
 
     // Motion: the scale, and the auto-pan's cycle under it
     const auto s = dsp::mapMacros ({ space, echo, motion, tone, mode });
@@ -370,13 +395,13 @@ CloudView::State SpaceForgeEditor::cloudState() const
     const auto& apvts = processor.parameters();
     CloudView::State st;
     st.space = valueOf (apvts, plugin::kSpaceId);
-    st.echo = valueOf (apvts, plugin::kEchoId);
+    st.echo = valueOf (apvts, plugin::kReflectId);
     st.motion = valueOf (apvts, plugin::kMotionId);
     st.tone = valueOf (apvts, plugin::kToneId);
     const auto s = dsp::mapMacros ({ st.space, st.echo, st.motion, st.tone, shownMode() });
-    st.feedback = (float) s.echoFeedback;
-    st.repeats = s.echoSend > 0.0 ? dsp::echoRepeats (s.echoFeedback) : 0;
-    st.echoSeconds = (float) (dsp::kEchoBeats * 60.0 / processor.getBpm());
+    st.feedback = (float) s.reflectFeedback;
+    st.repeats = s.reflectSend > 0.0 ? dsp::reflectRepeats (s.reflectFeedback) : 0;
+    st.echoSeconds = (float) (dsp::kReflectBeats * 60.0 / processor.getBpm());
     st.onsets = processor.getOnsetCount();
     st.pan = processor.getPanPosition();
     st.level = processor.getOutputLevel();
@@ -530,10 +555,13 @@ void SpaceForgeEditor::exportPreset()
     const auto& apvts = processor.parameters();
     p.mode = shownMode();
     p.space = valueOf (apvts, plugin::kSpaceId);
-    p.echo = valueOf (apvts, plugin::kEchoId);
+    p.reflect = valueOf (apvts, plugin::kReflectId);
     p.motion = valueOf (apvts, plugin::kMotionId);
     p.tone = valueOf (apvts, plugin::kToneId);
     p.mix = valueOf (apvts, plugin::kMixId);
+    p.delay = valueOf (apvts, plugin::kDelayId);
+    p.delayNote = juce::jlimit (0, dsp::kNumDelayNotes - 1, juce::roundToInt (valueOf (apvts, plugin::kDelayNoteId)));
+    p.duck = valueOf (apvts, plugin::kDuckId);
     const auto start = juce::File::getSpecialLocation (juce::File::userDocumentsDirectory).getChildFile (juce::File::createLegalFileName (p.name) + ".json");
     chooser = std::make_unique<juce::FileChooser> ("Export preset", start, "*.json");
     chooser->launchAsync (juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles | juce::FileBrowserComponent::warnAboutOverwriting,
@@ -763,6 +791,14 @@ void SpaceForgeEditor::resized()
     // Mix alone in the bottom-right corner, in a strip of its own beside the knobs
     auto mixStrip = area.removeFromRight (kMixSize);
     auto corner = mixStrip.removeFromBottom (kMixSize);
+    // above Mix: the two small knobs, Echo and Duck
+    {
+        const int smallH = 70 + MacroKnob::kTextHeight;
+        auto above = mixStrip.removeFromBottom (2 * smallH + 8);
+        smalls[0]->setBounds (above.removeFromTop (smallH));
+        above.removeFromTop (8);
+        smalls[1]->setBounds (above);
+    }
     mix.setBounds (corner.removeFromTop (72).withSizeKeepingCentre (68, 68));
     mixLabel.setBounds (corner.removeFromTop (20));
     mixValue.setBounds (corner.removeFromTop (18));
@@ -777,6 +813,12 @@ void SpaceForgeEditor::resized()
         const juce::Rectangle<int> cell (grid.getX() + (k % 2) * cellW, grid.getY() + (k / 2) * cellH, cellW, cellH);
         macros[(size_t) k]->setBounds (cell.withSizeKeepingCentre (cellW - 8, knob + MacroKnob::kTextHeight));
     }
+
+    // the column of small knobs and Mix ends where the grid ends
+    const int lift = area.getBottom() - macros[2]->getBottom();
+    if (lift > 0)
+        for (auto* c : std::initializer_list<juce::Component*> { smalls[0].get(), smalls[1].get(), &mix, &mixLabel, &mixValue })
+            c->setBounds (c->getBounds().translated (0, -lift));
 
     content.setTransform (juce::AffineTransform::scale ((float) getWidth() / (float) designWidth()));
 }

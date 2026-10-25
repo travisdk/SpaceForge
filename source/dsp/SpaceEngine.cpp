@@ -20,6 +20,15 @@ constexpr double kModeFadeSeconds = 0.02; // out and in again: 40 ms in all (CLA
 constexpr double kMacroSmoothingSeconds = 0.08;
 constexpr double kPanSmoothingSeconds = 0.02;
 constexpr double kTiltHz = 2000.0;
+// Duck: the input's level (peak) that starts ducking and the level where the full depth is
+// reached; fast attack, slow release (the tail comes back in the pauses).
+constexpr double kDuckAttackSeconds = 0.008, kDuckReleaseSeconds = 0.4;
+// Echo's repeats are heard in full beside the room (sharp); only this much of them goes into it.
+constexpr float kDelayRoomShare = 0.5f;
+// The repeats heard straight out beside the room: louder than the room's own copy, so they stand
+// up out of the tail in a track (Henrik: the first Echo was too faint to hear).
+constexpr float kDelayDirect = 1.6f;
+constexpr float kDuckStartDb = -45.0f, kDuckFullDb = -27.0f;
 
 // Cloud Seed mutes an output at -30 dB.
 constexpr double kMutedDb = -30.0;
@@ -60,7 +69,8 @@ SpaceEngine::Gains SpaceEngine::gainsNow() const
 {
     const auto gainOf = [] (double db) { return db > -60.0 ? (float) std::pow (10.0, db / 20.0) : 0.0f; };
     const bool sky = currentVoicing.grainsEnabled;
-    return { (float) settings.echoSend, sky ? gainOf (settings.spaceSkyFeedDb) : 0.0f, sky ? gainOf (settings.spaceSkyOutDb) : 0.0f, wetGain };
+    return { (float) settings.reflectSend, sky ? gainOf (settings.spaceSkyFeedDb) : 0.0f, sky ? gainOf (settings.spaceSkyOutDb) : 0.0f, wetGain,
+             (float) settings.delaySend };
 }
 
 void SpaceEngine::prepare (double newSampleRate)
@@ -71,6 +81,9 @@ void SpaceEngine::prepare (double newSampleRate)
     right->SetSamplerate ((int) sampleRate);
     texture.prepare (sampleRate);
     echo.prepare (sampleRate);
+    delay.prepare (sampleRate);
+    duckAttack = (float) (1.0 - std::exp (-1.0 / (kDuckAttackSeconds * sampleRate)));
+    duckRelease = (float) (1.0 - std::exp (-1.0 / (kDuckReleaseSeconds * sampleRate)));
     mixCoeff = (float) (1.0 - std::exp (-1.0 / (kMixSmoothingSeconds * sampleRate)));
     macroCoeff = (float) (1.0 - std::exp (-(double) chunk / (kMacroSmoothingSeconds * sampleRate)));
     panCoeff = (float) (1.0 - std::exp (-1.0 / (kPanSmoothingSeconds * sampleRate)));
@@ -191,11 +204,13 @@ void SpaceEngine::applySettings (const MacroSettings& s, bool force)
     }
     if (force)
         texture.setVoicing (currentVoicing.texture);
-    echo.setFeedback (s.echoFeedback);
+    echo.setFeedback (s.reflectFeedback);
     echo.setDampingHz (s.toneEchoDampingHz);
+    delay.setFeedback (s.delayFeedback);
+    delay.setDampingHz (1.5 * s.toneEchoDampingHz); // a little brighter than Reflect: sharp
     // Tone's finish: a first-order shelf above ~2 kHz, as gain on a high-passed copy.
     tiltGain = (float) (std::pow (10.0, s.toneTiltDb / 20.0) - 1.0);
-    wetGain = (float) std::pow (10.0, (currentVoicing.wetGainDb + s.spaceGainDb + s.echoGainDb + s.motionGainDb + s.toneGainDb) / 20.0);
+    wetGain = (float) std::pow (10.0, (currentVoicing.wetGainDb + s.spaceGainDb + s.reflectGainDb + s.motionGainDb + s.toneGainDb + s.delayGainDb) / 20.0);
     settings = s;
     if (force && ! frozen)
         applyFreeze (false);
@@ -216,6 +231,12 @@ void SpaceEngine::applyFreeze (bool on)
         channel->SetParameter (P::EqHighGain, on ? 0.0 : settings.toneHighShelfDb);
         channel->SetParameter (P::EqCutoff, on ? 0.45 * sampleRate : settings.toneLowpassHz);
     }
+}
+
+void SpaceEngine::setDelayTimes()
+{
+    const double leftSeconds = settings.delayBeats * 60.0 / bpm;
+    delay.setDelaySeconds (leftSeconds, leftSeconds * 4.0 / 3.0);
 }
 
 void SpaceEngine::setTempo (double newBpm, bool playing, double ppqPosition)
@@ -256,8 +277,12 @@ void SpaceEngine::reset()
     if (freezeTarget != frozen)
         applyFreeze (freezeTarget);
     applySettings (mapMacros (macroNow), true);
-    echo.setDelaySeconds (kEchoBeats * 60.0 / bpm);
+    echo.setDelaySeconds (kReflectBeats * 60.0 / bpm);
     echo.reset();
+    setDelayTimes();
+    delay.reset();
+    duckEnv = 0.0f;
+    duckGain = 1.0f;
     inputGain = frozen ? 0.0f : 1.0f;
     panL = panR = 1.0f;
     gains = gainsNow();
@@ -277,6 +302,7 @@ void SpaceEngine::switchMode (int mode)
     right->ClearBuffers();
     texture.reset();
     echo.reset();
+    delay.reset();
     for (auto* filters : { &sideHighPass, &midHighPass, &midLowPass })
         for (auto& f : *filters)
             f.s1 = f.s2 = 0.0;
@@ -320,6 +346,19 @@ void SpaceEngine::process (const float* inputL, const float* inputR, float* outL
         panGainL[(size_t) pos] = panL;
         panGainR[(size_t) pos] = panR;
 
+        // Duck: the input's envelope pulls the whole wet signal down (room, repeats and cloud
+        // alike); off, the gain is exactly 1.
+        const float peak = std::max (std::abs (dryL), std::abs (dryR));
+        duckEnv += (peak - duckEnv) * (peak > duckEnv ? duckAttack : duckRelease);
+        if (settings.duckDepthDb > 0.0)
+        {
+            const float db = 20.0f * std::log10 (std::max (duckEnv, 1.0e-6f));
+            const float amount = std::clamp ((db - kDuckStartDb) / (kDuckFullDb - kDuckStartDb), 0.0f, 1.0f);
+            duckGain = std::pow (10.0f, -(float) settings.duckDepthDb * amount / 20.0f);
+        }
+        else
+            duckGain = 1.0f;
+
         const float wl = wetL[(size_t) pos], wr = wetR[(size_t) pos];
         if (++pos == chunk)
         {
@@ -335,8 +374,8 @@ void SpaceEngine::process (const float* inputL, const float* inputR, float* outL
         const float mixAngle = mixNow * (float) (kPi / 2.0);
         const float dryGain = mixNow >= 1.0f ? 0.0f : std::cos (mixAngle);
         const float wetMix = mixNow <= 0.0f ? 0.0f : std::sin (mixAngle);
-        outL[i] = dryL * dryGain + wl * wetMix;
-        outR[i] = dryR * dryGain + wr * wetMix;
+        outL[i] = dryL * dryGain + wl * wetMix * duckGain;
+        outR[i] = dryR * dryGain + wr * wetMix * duckGain;
     }
 }
 
@@ -366,13 +405,19 @@ void SpaceEngine::processChunk()
     };
     const auto before = macroNow;
     glide (macroNow.space, macroTarget.space);
-    glide (macroNow.echo, macroTarget.echo);
+    glide (macroNow.reflect, macroTarget.reflect);
+    glide (macroNow.delay, macroTarget.delay);
+    glide (macroNow.duck, macroTarget.duck);
+    macroNow.delayNote = macroTarget.delayNote; // a fixed choice: its time is crossfaded in the delay
     glide (macroNow.motion, macroTarget.motion);
     glide (macroNow.tone, macroTarget.tone);
     const auto moved = [] (float a, float b) { return std::abs (a - b) > 0.0f; };
-    if (moved (before.space, macroNow.space) || moved (before.echo, macroNow.echo) || moved (before.motion, macroNow.motion) || moved (before.tone, macroNow.tone))
+    if (moved (before.space, macroNow.space) || moved (before.reflect, macroNow.reflect) || moved (before.motion, macroNow.motion)
+        || moved (before.tone, macroNow.tone) || moved (before.delay, macroNow.delay) || moved (before.duck, macroNow.duck)
+        || before.delayNote != macroNow.delayNote)
         applySettings (mapMacros (macroNow), false);
-    echo.setDelaySeconds (kEchoBeats * 60.0 / bpm);
+    echo.setDelaySeconds (kReflectBeats * 60.0 / bpm);
+    setDelayTimes();
 
     // Clouds granulates the room's last output all the time (also frozen), so its last second
     // of sound is always current.
@@ -405,12 +450,22 @@ void SpaceEngine::processChunk()
     }
     echo.process (echoL.data(), echoR.data(), echoL.data(), echoR.data(), chunk);
 
+    // Echo: the same input through the sharp delay (its send glides like the others).
+    for (int i = 0; i < chunk; ++i)
+    {
+        const auto k = (size_t) i;
+        const float send = glideAt (&Gains::delaySend, i);
+        delayL[k] = feedL[k] * send;
+        delayR[k] = feedR[k] * send;
+    }
+    delay.process (delayL.data(), delayR.data(), delayL.data(), delayR.data(), chunk);
+
     const float cross = (float) currentVoicing.crossFeed * 0.5f;
     for (int i = 0; i < chunk; ++i)
     {
         const auto k = (size_t) i;
-        const float l = feedL[k] + echoL[k] * inGain[k];
-        const float r = feedR[k] + echoR[k] * inGain[k];
+        const float l = feedL[k] + echoL[k] * inGain[k] + delayL[k] * kDelayRoomShare * inGain[k];
+        const float r = feedR[k] + echoR[k] * inGain[k] + delayR[k] * kDelayRoomShare * inGain[k];
         feedL[k] = l * (1.0f - cross) + r * cross;
         feedR[k] = r * (1.0f - cross) + l * cross;
     }
@@ -437,8 +492,8 @@ void SpaceEngine::processChunk()
     {
         const auto k = (size_t) i;
         const float out = glideAt (&Gains::skyOut, i);
-        wetL[k] += (grainsL[k] * out + echoL[k]) * inGain[k];
-        wetR[k] += (grainsR[k] * out + echoR[k]) * inGain[k];
+        wetL[k] += (grainsL[k] * out + echoL[k] + delayL[k] * kDelayDirect) * inGain[k];
+        wetR[k] += (grainsR[k] * out + echoR[k] + delayR[k] * kDelayDirect) * inGain[k];
     }
 
     // Tone's finish, mono bass, stereo width (Space), auto-pan, level.
@@ -472,6 +527,7 @@ void SpaceEngine::processChunk()
         left->ClearBuffers();
         right->ClearBuffers();
         echo.reset();
+        delay.reset();
         for (auto& f : sideHighPass)
             f.s1 = f.s2 = 0.0;
         for (auto& f : midHighPass)

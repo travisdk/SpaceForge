@@ -24,7 +24,7 @@ namespace
 {
 bool inRange (const Preset& p)
 {
-    for (const float v : { p.space, p.echo, p.motion, p.tone, p.mix })
+    for (const float v : { p.space, p.reflect, p.motion, p.tone, p.mix })
         if (! (std::isfinite (v) && v >= 0.0f && v <= 1.0f))
             return false;
     return p.mode >= 0 && p.mode < dsp::kNumModes && p.name.isNotEmpty() && p.name == presets::sanitiseName (p.name);
@@ -36,7 +36,7 @@ void testRoundTrip()
     p.name = "Langsom tåge";
     p.mode = 3;
     p.space = 0.71f;
-    p.echo = 0.25f;
+    p.reflect = 0.25f;
     p.motion = 0.9f;
     p.tone = 0.12f;
     p.mix = 0.55f;
@@ -44,6 +44,20 @@ void testRoundTrip()
     CHECK (back.has_value());
     CHECK (back && back->sameSound (p) && back->name == p.name);
     CHECK (presets::toJson (p).contains ("\"mode\": \"" + juce::String (dsp::modeSetup (3).name) + "\""));
+
+    // Echo, its note and Duck are saved with the preset (the note as text); older files without
+    // them mean off and 1/8d, and an unknown note falls back to 1/8d.
+    p.delay = 0.6f;
+    p.delayNote = 4;
+    p.duck = 0.3f;
+    const auto json = presets::toJson (p);
+    CHECK (json.contains ("\"delayNote\": \"1/4d\""));
+    const auto both = presets::fromJson (json);
+    CHECK (both && both->sameSound (p) && both->delayNote == 4 && std::abs (both->delay - 0.6f) < 0.001f && std::abs (both->duck - 0.3f) < 0.001f);
+    const auto old = presets::fromJson ("{\"name\": \"Old\", \"mode\": \"Sky\", \"space\": 0.5, \"echo\": 0.2, \"motion\": 0.5, \"tone\": 0.5, \"mix\": 0.4}");
+    CHECK (old && std::abs (old->delay) < 1.0e-6f && std::abs (old->duck) < 1.0e-6f && old->delayNote == dsp::MacroPositions::kInitDelayNote && std::abs (old->reflect - 0.2f) < 0.001f);
+    const auto odd = presets::fromJson ("{\"name\": \"Odd\", \"delay\": \"x\", \"duck\": 1e999, \"delayNote\": \"1/3\"}");
+    CHECK (odd && std::abs (odd->delay) < 1.0e-6f && std::abs (odd->duck) < 1.0e-6f && odd->delayNote == dsp::MacroPositions::kInitDelayNote);
 }
 
 void testHostile()
@@ -67,7 +81,7 @@ void testHostile()
     CHECK (loaded == 4); // the four with a usable name; everything else refused
     const auto weird = presets::fromJson ("{\"name\": \"x\", \"space\": \"NaN\", \"echo\": 1e999, \"motion\": -5}");
     auto same = [] (float a, float b) { return std::abs (a - b) < 1.0e-6f; };
-    CHECK (weird && same (weird->space, dsp::MacroPositions::kInitSpace) && same (weird->echo, dsp::MacroPositions::kInitEcho) && same (weird->motion, 0.0f));
+    CHECK (weird && same (weird->space, dsp::MacroPositions::kInitSpace) && same (weird->reflect, dsp::MacroPositions::kInitReflect) && same (weird->motion, 0.0f));
     CHECK (presets::sanitiseName (juce::String::repeatedString ("a", 500)).length() == presets::kMaxNameLength);
 
     // Too large: refused unread.
@@ -154,14 +168,14 @@ void testApply()
     p.name = "Test";
     p.mode = 4;
     p.space = 0.3f;
-    p.echo = 0.6f;
+    p.reflect = 0.6f;
     p.motion = 0.1f;
     p.tone = 0.8f;
     p.mix = 0.7f;
     processor.applyPreset (p);
     auto value = [&processor] (const char* id) { return processor.parameters().getRawParameterValue (id)->load(); };
     CHECK (std::lround (value (plugin::kModeId)) == 4);
-    CHECK (std::abs (value (plugin::kSpaceId) - 0.3f) < 1e-4f && std::abs (value (plugin::kEchoId) - 0.6f) < 1e-4f);
+    CHECK (std::abs (value (plugin::kSpaceId) - 0.3f) < 1e-4f && std::abs (value (plugin::kReflectId) - 0.6f) < 1e-4f);
     CHECK (std::abs (value (plugin::kMotionId) - 0.1f) < 1e-4f && std::abs (value (plugin::kToneId) - 0.8f) < 1e-4f);
     CHECK (std::abs (value (plugin::kMixId) - 0.7f) < 1e-4f);
     CHECK (processor.presetName() == "Test" && processor.presetUnchanged());
@@ -243,7 +257,7 @@ void testFactory()
     {
         if (p.name == "Init")
             continue;
-        const dsp::MacroPositions k { p.space, p.echo, p.motion, p.tone, p.mode };
+        const dsp::MacroPositions k { p.space, p.reflect, p.motion, p.tone, p.mode };
         auto engine = fresh();
         const double pinkDb = analysis::rmsDb (render (*engine, k, pink), from, pink.size()) - analysis::rmsDb (pink, from, pink.size());
         const double padDb = analysis::rmsDb (render (*engine, k, pad), 0, pad.size()) - padInit[p.mode];

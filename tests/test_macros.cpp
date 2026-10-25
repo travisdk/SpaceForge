@@ -69,7 +69,7 @@ void testLevels()
     const double pinkInit = analysis::rmsDb (renderWet (*init, pink), at (6.0), pink.size());
     const double padInit = analysis::rmsDb (renderWet (*init, pad), at (1.0), at (4.0));
     const std::pair<const char*, float dsp::MacroPositions::*> knobs[] = {
-        { "space", &dsp::MacroPositions::space }, { "echo", &dsp::MacroPositions::echo },
+        { "space", &dsp::MacroPositions::space }, { "echo", &dsp::MacroPositions::reflect },
         { "motion", &dsp::MacroPositions::motion }, { "tone", &dsp::MacroPositions::tone } };
     for (const auto& [name, knob] : knobs)
     {
@@ -142,18 +142,18 @@ void testEcho()
     // A click at 125 BPM: the first echo (1/8 dotted = 0.36 s) appears, on the left, and more
     // repeats remain with more Echo. Without grains, so the echoes are not hidden by them.
     std::printf ("Echo: first echo (left, against just before it), level at the 5th echo:\n");
-    const double t = dsp::kEchoBeats * 60.0 / analysis::kTestBpm;
+    const double t = dsp::kReflectBeats * 60.0 / analysis::kTestBpm;
     const auto click = analysis::makeClick (kRate, 5.0).audio;
     double previousFifth = -1000.0;
     for (const int percent : kPositions)
     {
-        auto engine = makeEngine (with (&dsp::MacroPositions::echo, percent / 100.0), false);
+        auto engine = makeEngine (with (&dsp::MacroPositions::reflect, percent / 100.0), false);
         const auto out = renderWet (*engine, click);
         analysis::Stereo left { out.l, out.l }, right { out.r, out.r };
         const double echo = analysis::rmsDb (left, at (t), at (t + 0.03)) - analysis::rmsDb (left, at (t - 0.05), at (t - 0.01));
         const double balance = analysis::rmsDb (left, at (t), at (t + 0.03)) - analysis::rmsDb (right, at (t), at (t + 0.03));
         const double fifth = analysis::rmsDb (out, at (5 * t), at (5 * t + 0.03));
-        std::printf ("  %3d%% %-13s: first %+5.1f dB (L-R %+5.1f dB), 5th %6.1f dB\n", percent, dsp::describeEcho (percent / 100.0f).c_str(), echo, balance, fifth);
+        std::printf ("  %3d%% %-13s: first %+5.1f dB (L-R %+5.1f dB), 5th %6.1f dB\n", percent, dsp::describeReflect (percent / 100.0f).c_str(), echo, balance, fifth);
         if (percent == 0)
             CHECK (echo < 3.0); // no echo: nothing stands out
         else
@@ -166,7 +166,7 @@ void testEcho()
     }
 
     // The echo follows the tempo: at 100 BPM it is at 0.45 s.
-    auto engine = makeEngine (with (&dsp::MacroPositions::echo, 0.5), false);
+    auto engine = makeEngine (with (&dsp::MacroPositions::reflect, 0.5), false);
     engine->setMix (1.0f);
     engine->reset();
     engine->setTempo (100.0, true, 0.0);
@@ -177,7 +177,7 @@ void testEcho()
         engine->process (&click.l[pos], &click.r[pos], &out.l[pos], &out.r[pos], n);
     }
     analysis::Stereo left { out.l, out.l };
-    const double slow = dsp::kEchoBeats * 60.0 / 100.0;
+    const double slow = dsp::kReflectBeats * 60.0 / 100.0;
     const double echo100 = analysis::rmsDb (left, at (slow), at (slow + 0.03)) - analysis::rmsDb (left, at (slow - 0.05), at (slow - 0.01));
     std::printf ("  at 100 BPM: echo at %.2f s %+5.1f dB\n", slow, echo100);
     CHECK (echo100 > 6.0);
@@ -284,7 +284,7 @@ void testNoClicks()
         return toDb (peak);
     };
     const std::pair<const char*, float dsp::MacroPositions::*> knobs[] = {
-        { "space", &dsp::MacroPositions::space }, { "echo", &dsp::MacroPositions::echo },
+        { "space", &dsp::MacroPositions::space }, { "echo", &dsp::MacroPositions::reflect },
         { "motion", &dsp::MacroPositions::motion }, { "tone", &dsp::MacroPositions::tone } };
     for (const auto& [name, knob] : knobs)
     {
@@ -336,7 +336,7 @@ void testNoHiddenEcho()
         std::printf ("  Motion %3d%%: %.2f\n", percent, copy);
         CHECK (copy < 0.25);
     }
-    auto echo = makeEngine (with (&dsp::MacroPositions::echo, 0.3));
+    auto echo = makeEngine (with (&dsp::MacroPositions::reflect, 0.3));
     const double withEcho = worstCopy (*echo);
     std::printf ("  (Echo 30 %%: %.2f, must be caught)\n", withEcho);
     CHECK (withEcho > 0.4);
@@ -344,7 +344,7 @@ void testNoHiddenEcho()
 
 void testTexts()
 {
-    CHECK (dsp::describeEcho (0.0f) == "no echo");
+    CHECK (dsp::describeReflect (0.0f) == "no echo");
     CHECK (dsp::describeMotion (0.0f) == "still");
     CHECK (dsp::describeMotion (1.0f).find ("pan ½ bar") != std::string::npos);
     CHECK (dsp::describeMotion (0.5f).find ("pan 2 bars") != std::string::npos);

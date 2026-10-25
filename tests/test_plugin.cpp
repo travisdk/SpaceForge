@@ -83,14 +83,14 @@ void testTexts()
     // The DAW shows what the knobs do, in the same words as the plug-in.
     SpaceForgeProcessor p;
     auto text = [&p] (const char* id, float value) { return p.parameters().getParameter (id)->getText (value, 64); };
-    CHECK (text (plugin::kEchoId, 0.0f) == "no echo");
-    CHECK (text (plugin::kEchoId, 0.5f) == juce::String::fromUTF8 (dsp::describeEcho (0.5f).c_str()));
+    CHECK (text (plugin::kReflectId, 0.0f) == "no echo");
+    CHECK (text (plugin::kReflectId, 0.5f) == juce::String::fromUTF8 (dsp::describeReflect (0.5f).c_str()));
     CHECK (text (plugin::kMotionId, 0.0f) == "still");
     CHECK (text (plugin::kSpaceId, 0.6f) == juce::String::fromUTF8 (dsp::describeSpace (0.6f).c_str()));
     CHECK (text (plugin::kToneId, 0.0f).startsWith ("dark"));
 
     // Text back to a value lands where the same text is shown (the DAW's typed-in values).
-    for (const char* id : { plugin::kSpaceId, plugin::kEchoId, plugin::kMotionId, plugin::kToneId })
+    for (const char* id : { plugin::kSpaceId, plugin::kReflectId, plugin::kMotionId, plugin::kToneId })
     {
         auto* param = p.parameters().getParameter (id);
         for (int i = 0; i <= 20; ++i)
@@ -108,7 +108,7 @@ void testEditor()
     SpaceForgeProcessor p;
     auto set = [&p] (const char* id, float value) { p.parameters().getParameter (id)->setValueNotifyingHost (value); };
     set (plugin::kSpaceId, 0.25f);
-    set (plugin::kEchoId, 0.5f);
+    set (plugin::kReflectId, 0.5f);
     set (plugin::kMixId, 0.7f);
     std::unique_ptr<juce::AudioProcessorEditor> editor (p.createEditor());
     auto* view = dynamic_cast<SpaceForgeEditor*> (editor.get());
@@ -118,21 +118,46 @@ void testEditor()
     auto dawText = [&p] (const char* id) { return p.parameters().getParameter (id)->getCurrentValueAsText(); };
     view->advanceAnimation (0.1f);
     CHECK (view->macro (0).getValueText() == dawText (plugin::kSpaceId));
-    CHECK (view->macro (1).getValueText() == dawText (plugin::kEchoId));
+    CHECK (view->macro (1).getValueText() == dawText (plugin::kReflectId));
     CHECK (view->mixText() == "70 %");
     CHECK (view->presetText() == "Init *"); // knobs turned since Init
+
+    // The renamed and the new knobs: Reflect keeps its id "echo", Echo and Duck start at 0 and show
+    // the same words in the window and in the DAW; Echo's note is a choice that shows by the knob.
+    CHECK (p.parameters().getParameter (plugin::kReflectId)->getName (64) == "Reflect");
+    CHECK (p.parameters().getParameter (plugin::kDelayId)->getName (64) == "Echo");
+    CHECK (p.parameters().getParameter (plugin::kDuckId)->getName (64) == "Duck");
+    CHECK (std::string (plugin::kReflectId) == "echo");
+    CHECK (std::abs (p.parameters().getParameter (plugin::kDelayId)->getDefaultValue()) < 1.0e-6f);
+    CHECK (std::abs (p.parameters().getParameter (plugin::kDuckId)->getDefaultValue()) < 1.0e-6f);
+    CHECK (dawText (plugin::kDelayId) == "off · 1/8d");
+    CHECK (dawText (plugin::kDuckId) == "off");
+    set (plugin::kDelayId, 0.5f);
+    set (plugin::kDuckId, 0.5f);
+    view->advanceAnimation (0.1f);
+    view->refreshValues();
+    CHECK (dawText (plugin::kDelayId).startsWith ("1/8d · "));
+    CHECK (dawText (plugin::kDuckId) == "6 dB");
+    CHECK (view->smallKnob (0).getValueText() == dawText (plugin::kDelayId));
+    CHECK (view->smallKnob (1).getValueText() == dawText (plugin::kDuckId));
+    view->clickEchoNote(); // 1/8d -> 1/4
+    CHECK (dawText (plugin::kDelayId).startsWith ("1/4 · "));
+    CHECK (view->smallKnob (0).getValueText() == dawText (plugin::kDelayId));
+    set (plugin::kDelayNoteId, 2.0f / 4.0f);
+    CHECK (dawText (plugin::kDelayId).startsWith ("1/8d · "));
     CHECK (p.parameters().getParameter ("freeze") == nullptr); // out for now (branch feature/freeze)
 
     // The dice moves the four macros (at least two clearly), never Mode or Mix; undo goes back.
     auto knob = [&p] (const char* id) { return p.parameters().getRawParameterValue (id)->load(); };
-    const float before[] = { knob (plugin::kSpaceId), knob (plugin::kEchoId), knob (plugin::kMotionId), knob (plugin::kToneId) };
+    const float before[] = { knob (plugin::kSpaceId), knob (plugin::kReflectId), knob (plugin::kMotionId), knob (plugin::kToneId) };
     const float modeBefore = knob (plugin::kModeId);
     view->clickDice();
     int moved = 0;
-    const char* ids[] = { plugin::kSpaceId, plugin::kEchoId, plugin::kMotionId, plugin::kToneId };
+    const char* ids[] = { plugin::kSpaceId, plugin::kReflectId, plugin::kMotionId, plugin::kToneId };
     for (int m = 0; m < 4; ++m)
         moved += std::abs (knob (ids[m]) - before[m]) >= 0.2f ? 1 : 0;
     CHECK (moved >= 2);
+    CHECK (std::abs (knob (plugin::kDelayId) - 0.5f) < 1.0e-4f && std::abs (knob (plugin::kDuckId) - 0.5f) < 1.0e-4f); // the dice leaves them
     CHECK (std::abs (knob (plugin::kMixId) - 0.7f) < 1.0e-4f && std::abs (knob (plugin::kModeId) - modeBefore) < 1.0e-4f);
     CHECK (view->macro (0).isAnimating()); // the knobs glide on screen; the parameter is already there
     view->clickDice();
@@ -176,7 +201,7 @@ void testEditor()
     const auto sound = analysis::makeBleeps (48000.0, 1.0).audio;
     juce::AudioBuffer<float> buffer (2, 1600);
     juce::MidiBuffer midi;
-    set (plugin::kEchoId, 0.5f);
+    set (plugin::kReflectId, 0.5f);
     for (size_t pos = 0; pos + 1600 <= sound.l.size(); pos += 1600)
     {
         buffer.copyFrom (0, 0, &sound.l[pos], 1600);
@@ -194,7 +219,7 @@ void testStateRoundTrip()
     SpaceForgeProcessor a;
     a.applyPreset ([] { Preset x; x.name = "Long Iron"; x.mode = 2; return x; }());
     setParam (a, plugin::kSpaceId, 0.21f);
-    setParam (a, plugin::kEchoId, 0.42f);
+    setParam (a, plugin::kReflectId, 0.42f);
     setParam (a, plugin::kMotionId, 0.63f);
     setParam (a, plugin::kToneId, 0.84f);
     setParam (a, plugin::kMixId, 0.73f);
@@ -205,7 +230,7 @@ void testStateRoundTrip()
     b.setStateInformation (state.getData(), (int) state.getSize());
     CHECK_RANGE (paramValue (b, plugin::kMixId), 0.729, 0.731);
     CHECK_RANGE (paramValue (b, plugin::kSpaceId), 0.209, 0.211);
-    CHECK_RANGE (paramValue (b, plugin::kEchoId), 0.419, 0.421);
+    CHECK_RANGE (paramValue (b, plugin::kReflectId), 0.419, 0.421);
     CHECK_RANGE (paramValue (b, plugin::kMotionId), 0.629, 0.631);
     CHECK_RANGE (paramValue (b, plugin::kToneId), 0.839, 0.841);
     CHECK (b.presetName() == "Long Iron" && b.presetUnchanged()); // the name comes back, the values are the project's

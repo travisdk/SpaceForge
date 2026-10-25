@@ -43,6 +43,9 @@ public:
     // For screenshots and tests.
     void advanceAnimation (float seconds) { cloud.advance (seconds); }
     const MacroKnob& macro (int index) const { return *macros[(size_t) index]; }
+    const MacroKnob& smallKnob (int index) const { return *smalls[(size_t) index]; } // 0 = Echo, 1 = Duck
+    void refreshValues() { timerCallback(); } // the texts under the controls now, not at the next tick
+    void clickEchoNote() { smalls[0]->onTextClick(); }
     juce::String mixText() const { return mixValue.getText(); }
     juce::String presetText() const { return presetName.getText(); }
     int shownMode() const;
@@ -104,11 +107,13 @@ private:
     PresetBrowser browser;
     CloudView cloud;
     std::array<std::unique_ptr<MacroKnob>, kNumMacros> macros;
+    // The two small ones in the strip above Mix: Echo (sharp repeats, the note by clicking its text) and Duck.
+    std::array<std::unique_ptr<MacroKnob>, 2> smalls;
 
     ShapeButton previous { ShapeButton::Shape::Left, "Previous preset" };
     ShapeButton next { ShapeButton::Shape::Right, "Next preset" };
     ShapeButton favourite { ShapeButton::Shape::Heart, "Favourite" };
-    ShapeButton dice { ShapeButton::Shape::Dice, "Dice: Space, Echo, Motion and Tone to new positions; also the Mode when the lock is open (Shift+click: Mode this time). Mix stays." };
+    ShapeButton dice { ShapeButton::Shape::Dice, "Dice: Space, Reflect, Motion and Tone to new positions; also the Mode when the lock is open (Shift+click: Mode this time). Mix stays." };
     ShapeButton modeLock { ShapeButton::Shape::Lock, "Mode lock: closed = the dice keeps the Mode, open = the dice picks a Mode too" };
     ShapeButton undo { ShapeButton::Shape::Back, "Undo the last roll (Ctrl+Z)" };
     ShapeButton gear { ShapeButton::Shape::Gear, "Settings" };

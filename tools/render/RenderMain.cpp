@@ -8,6 +8,8 @@
 //   sf2_render --table        what every knob does at every position, in real units
 //   sf2_render --calibrate    measures each knob's level and the Space decay times, prints tables
 //   sf2_render --sweeps       WAV files with each knob at 0, 25, 50, 75 and 100 % (renders/makroer)
+//   sf2_render --echo-duck    a bleep through Echo and Duck at 0, 50 and 100 % in three Modes
+//                             (renders/echo-duck), with a table of what was measured
 //
 // --macro sets a knob (space, echo, motion, tone; 0..1). --set changes one fixed voicing value
 // for this run only (for trying things out), e.g. --set lowShelfDb=-1.2
@@ -83,7 +85,9 @@ bool applySetting (dsp::SpaceVoicing& v, const std::string& setting)
 float* macroField (dsp::MacroPositions& m, const std::string& name)
 {
     if (name == "space") return &m.space;
-    if (name == "echo") return &m.echo;
+    if (name == "echo" || name == "reflect") return &m.reflect; // "echo" is Reflect's old name (kept for old scripts)
+    if (name == "delay") return &m.delay; // the Echo knob
+    if (name == "duck") return &m.duck;
     if (name == "motion") return &m.motion;
     if (name == "tone") return &m.tone;
     return nullptr;
@@ -139,9 +143,9 @@ void printTable()
     {
         const float x = (float) i / 10.0f;
         dsp::MacroPositions p;
-        p.echo = x;
+        p.reflect = x;
         const auto s = dsp::mapMacros (p);
-        std::printf ("  %3d %%  %-13s  %4.2f   %4.2f      %+5.1f dB\n", i * 10, dsp::describeEcho (x).c_str(), s.echoSend, s.echoFeedback, s.echoGainDb);
+        std::printf ("  %3d %%  %-13s  %4.2f   %4.2f      %+5.1f dB\n", i * 10, dsp::describeReflect (x).c_str(), s.reflectSend, s.reflectFeedback, s.reflectGainDb);
     }
     std::printf ("\nMOTION  tekst                                 mod.     pan      niveau-komp.\n");
     for (int i = 0; i <= 10; ++i)
@@ -182,7 +186,7 @@ void calibrate (const dsp::SpaceVoicing& voicing)
             auto engine = makeEngine (voicing, p);
             const double level = wetLevel (*engine, pink);
             const auto s = dsp::mapMacros (p);
-            const double current = std::string (name) == "space" ? s.spaceGainDb : std::string (name) == "echo" ? s.echoGainDb
+            const double current = std::string (name) == "space" ? s.spaceGainDb : std::string (name) == "echo" ? s.reflectGainDb
                                  : std::string (name) == "motion" ? s.motionGainDb : s.toneGainDb;
             std::printf (" %+.2f", level);
             char text[32];
@@ -303,9 +307,9 @@ void calibrateMode (int mode, int pass)
     };
     const double init = level ({});
     std::printf ("TABLE kModeGainDb %d %.2f\n", mode, cal::kModeGainDb[m] - init);
-    const std::array<const std::array<std::array<double, 11>, dsp::kNumModes>*, 4> tables { &cal::kSpaceGainDb, &cal::kEchoGainDb,
+    const std::array<const std::array<std::array<double, 11>, dsp::kNumModes>*, 4> tables { &cal::kSpaceGainDb, &cal::kReflectGainDb,
                                                                                          &cal::kMotionGainDb, &cal::kToneGainDb };
-    const char* tableNames[] = { "kSpaceGainDb", "kEchoGainDb", "kMotionGainDb", "kToneGainDb" };
+    const char* tableNames[] = { "kSpaceGainDb", "kReflectGainDb", "kMotionGainDb", "kToneGainDb" };
     for (int k = 0; k < 4; ++k)
     {
         std::array<double, 11> suggestion {};
@@ -398,6 +402,76 @@ void modesReport (const std::string& outDir)
     std::printf ("\nLydfiler i %s/: <nr>_<Mode>_pad/bleeps/figur.wav (mix 40 %%)\n", outDir.c_str());
 }
 
+// Echo and Duck (the small controls) on a bleep, at 0, 50 and 100 %, in a few Modes. The table
+// says what each does: Echo, the first repeats (left at the note, right at 4/3 of it) against
+// just before them, and the number of repeats; Duck, how far the wet signal sinks while the
+// bleeps play and that it is back later.
+void echoDuck (const dsp::SpaceVoicing& voicing, const std::string& outDir)
+{
+    std::filesystem::create_directories (outDir);
+    const auto bleeps = analysis::makeBleeps (kRate, 12.0).audio;
+    const double beat = 60.0 / analysis::kTestBpm, t = dsp::delayNoteBeats (dsp::MacroPositions::kInitDelayNote) * beat;
+    const auto peakDb = [] (const std::vector<float>& side, double from, double to) {
+        float p = 1.0e-9f;
+        for (size_t i = (size_t) (from * kRate); i < std::min (side.size(), (size_t) (to * kRate)); ++i)
+            p = std::max (p, std::abs (side[i]));
+        return 20.0 * std::log10 (p);
+    };
+    std::printf ("Echo: first bleep at 0 s, 1/8d at %.0f BPM = %.2f s on the left, %.2f s on the right\n", analysis::kTestBpm, t, t * 4.0 / 3.0);
+    std::printf ("%-9s %-4s %-12s %14s %14s %12s\n", "Mode", "Echo", "text", "left repeat", "right repeat", "left vs dry");
+    std::printf ("%-9s %-4s %-12s %14s %14s %12s\n", "", "", "", "over before", "over before", "(peak)");
+    for (const int mode : { 0, 1, 5 })
+        for (const int percent : { 0, 50, 100 })
+        {
+            dsp::MacroPositions p;
+            p.mode = mode;
+            p.space = 0.5f;
+            p.delay = (float) percent / 100.0f;
+            auto engine = makeEngine (voicing, p);
+            const auto wet = analysis::render (*engine, bleeps, kRate);
+            engine->setTempo (analysis::kTestBpm, true, 0.0);
+            analysis::RenderOptions mixed;
+            mixed.mix = plugin::kDefaultMix;
+            char file[160];
+            std::snprintf (file, sizeof (file), "%s/echo_%s_%03d.wav", outDir.c_str(), dsp::modeSetup (mode).name, percent);
+            analysis::writeWav (file, analysis::render (*engine, bleeps, kRate, mixed), kRate);
+            // the first bleep alone: its repeats against what the room does just before them
+            const double l = peakDb (wet.l, t - 0.004, t + 0.012) - peakDb (wet.l, t - 0.06, t - 0.02);
+            const double r = peakDb (wet.r, t * 4.0 / 3.0 - 0.004, t * 4.0 / 3.0 + 0.012) - peakDb (wet.r, t * 4.0 / 3.0 - 0.06, t * 4.0 / 3.0 - 0.02);
+            const double vsDry = peakDb (wet.l, t - 0.004, t + 0.012) - peakDb (bleeps.l, 0.0, 0.08);
+            std::printf ("%-9s %3d%% %-12s %+11.1f dB %+11.1f dB %+9.1f dB\n", dsp::modeSetup (mode).name, percent,
+                         dsp::describeDelay ((float) percent / 100.0f, p.delayNote).c_str(), l, r, vsDry);
+        }
+
+    std::printf ("\nDuck: the wet level while the bleeps play (0 to 2 s) and 8 to 11 s later, against Duck 0\n");
+    std::printf ("%-9s %-5s %-6s %12s %12s\n", "Mode", "Duck", "text", "playing", "later");
+    for (const int mode : { 0, 1, 5 })
+    {
+        double base[2] = { 0.0, 0.0 };
+        for (const int percent : { 0, 50, 100 })
+        {
+            dsp::MacroPositions p;
+            p.mode = mode;
+            p.space = 0.5f;
+            p.duck = (float) percent / 100.0f;
+            auto engine = makeEngine (voicing, p);
+            const auto wet = analysis::render (*engine, bleeps, kRate);
+            const double playing = analysis::rmsDb (wet, 0, (size_t) (2.0 * kRate)), later = analysis::rmsDb (wet, (size_t) (8.0 * kRate), (size_t) (11.0 * kRate));
+            if (percent == 0)
+                base[0] = playing, base[1] = later;
+            analysis::RenderOptions mixed;
+            mixed.mix = plugin::kDefaultMix;
+            char file[160];
+            std::snprintf (file, sizeof (file), "%s/duck_%s_%03d.wav", outDir.c_str(), dsp::modeSetup (mode).name, percent);
+            analysis::writeWav (file, analysis::render (*engine, bleeps, kRate, mixed), kRate);
+            std::printf ("%-9s %4d%% %-6s %+9.1f dB %+9.1f dB\n", dsp::modeSetup (mode).name, percent, dsp::describeDuck ((float) percent / 100.0f).c_str(),
+                         playing - base[0], later - base[1]);
+        }
+    }
+    std::printf ("\nWAV files in %s/: echo_<Mode>_<percent>.wav and duck_<Mode>_<percent>.wav (a bleep, Space 50 %%, Mix %d %%)\n", outDir.c_str(),
+                 (int) (plugin::kDefaultMix * 100.0f + 0.5f));
+}
+
 void sweeps (const dsp::SpaceVoicing& voicing, const std::string& outDir)
 {
     // Each knob from left to right, the others at Init; the sounds that show that knob best.
@@ -428,7 +502,7 @@ void sweeps (const dsp::SpaceVoicing& voicing, const std::string& outDir)
 int main (int argc, char** argv)
 {
     std::string outDir = "renders";
-    bool writeFiles = true, table = false, calibration = false, sweep = false;
+    bool writeFiles = true, table = false, calibration = false, sweep = false, echoDuckRenders = false;
     int calibrateModeIndex = -1, calibratePass = 1;
     bool modes = false;
     dsp::SpaceVoicing voicing;
@@ -454,6 +528,8 @@ int main (int argc, char** argv)
             modes = true;
         else if (std::strcmp (argv[i], "--sweeps") == 0)
             sweep = true;
+        else if (std::strcmp (argv[i], "--echo-duck") == 0)
+            echoDuckRenders = true;
         else if (std::strcmp (argv[i], "--set") == 0 && i + 1 < argc && applySetting (voicing, argv[i + 1]))
             ++i;
         else if (std::strcmp (argv[i], "--macro") == 0 && i + 1 < argc && applyMacro (macros, argv[i + 1]))
@@ -461,7 +537,7 @@ int main (int argc, char** argv)
         else
         {
             std::fprintf (stderr, "usage: sf2_render [--out DIR] [--no-wav] [--mode N] [--macro name=value ...] [--set name=value ...]\n"
-                                  "       sf2_render --table | --calibrate | --sweeps | --modes | --calibrate-mode N PASS\n");
+                                  "       sf2_render --table | --calibrate | --sweeps | --echo-duck | --modes | --calibrate-mode N PASS\n");
             return 2;
         }
     }
@@ -477,10 +553,12 @@ int main (int argc, char** argv)
         return calibrate (voicing), 0;
     if (sweep)
         return sweeps (voicing, outDir + "/makroer"), 0;
+    if (echoDuckRenders)
+        return echoDuck (voicing, outDir + "/echo-duck"), 0;
 
     auto engine = makeEngine (voicing, macros);
     const float mix = plugin::kDefaultMix;
-    std::printf ("Knapper: Space %s, Echo %s, Motion %s, Tone %s\n\n", dsp::describeSpace (macros.space).c_str(), dsp::describeEcho (macros.echo).c_str(),
+    std::printf ("Knapper: Space %s, Echo %s, Motion %s, Tone %s\n\n", dsp::describeSpace (macros.space).c_str(), dsp::describeReflect (macros.reflect).c_str(),
                  dsp::describeMotion (macros.motion).c_str(), dsp::describeTone (macros.tone).c_str());
 
     if (writeFiles)

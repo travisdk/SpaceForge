@@ -50,3 +50,9 @@ target_link_libraries(test_presets PRIVATE SpaceForge2 spaceforge_analysis)
 add_test(NAME presets COMMAND test_presets)
 set_tests_properties(presets PROPERTIES TIMEOUT 400)
 add_dependencies(SpaceForge_Tests test_presets)
+
+# The small controls Echo (sharp tempo-synced repeats) and Duck: direction, audible effect, level, texts.
+add_executable(test_echoduck test_echoduck.cpp)
+target_link_libraries(test_echoduck PRIVATE spaceforge_analysis juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)
+add_test(NAME echoduck COMMAND test_echoduck)
+add_dependencies(SpaceForge_Tests test_echoduck)

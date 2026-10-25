@@ -83,6 +83,7 @@ add_library(spaceforge_dsp STATIC
     source/dsp/SpaceEngine.cpp
     source/dsp/TextureEngine.cpp
     source/dsp/EchoEngine.cpp
+    source/dsp/StereoDelay.cpp
     source/dsp/Macros.cpp
     source/dsp/Modes.cpp)
 target_include_directories(spaceforge_dsp PUBLIC source)
@@ -107,6 +108,10 @@ target_link_libraries(sf2_render PRIVATE spaceforge_analysis juce::juce_recommen
 # sf2_candidates: measured preset candidates for one Mode (presets/candidates), sorted by ear.
 add_executable(sf2_candidates tools/candidates/CandidatesMain.cpp)
 target_link_libraries(sf2_candidates PRIVATE spaceforge_analysis juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)
+
+# sf2_regress: proves that a change leaves existing presets sounding the same (dump, compare).
+add_executable(sf2_regress tools/regress/RegressMain.cpp)
+target_link_libraries(sf2_regress PRIVATE spaceforge_analysis juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)
 
 # ---------------------------------------------------------------------------------------------
 juce_add_plugin(SpaceForge2

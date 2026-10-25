@@ -30,7 +30,7 @@ int main (int argc, char* argv[])
     const float scale = argc > 2 && ! juce::String (argv[2]).containsChar ('=') ? juce::String (argv[2]).getFloatValue() : 1.0f;
 
     float playSeconds = 0.0f;
-    const char* ids[] = { spaceforge::plugin::kSpaceId, spaceforge::plugin::kEchoId, spaceforge::plugin::kMotionId, spaceforge::plugin::kToneId };
+    const char* ids[] = { spaceforge::plugin::kSpaceId, spaceforge::plugin::kReflectId, spaceforge::plugin::kMotionId, spaceforge::plugin::kToneId };
     for (int i = 2; i < argc; ++i)
     {
         const juce::String option (argv[i]);

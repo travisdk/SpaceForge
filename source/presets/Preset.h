@@ -9,11 +9,14 @@
 #include "plugin/Defaults.h"
 
 // A preset as stored in a JSON file: its name and the visible controls (Mode, the four macros,
-// Mix). Nothing else, so what you hear can always be read off the controls (CLAUDE.md,
+// Mix, and the small Echo and Duck with Echo's fixed note, which is shown as text by the knob).
+// Nothing else, so what you hear can always be read off the controls (CLAUDE.md,
 // "Intet skjult"). The format (adapted from SpaceForge 1):
 //
 //   { "name": "Init", "mode": "Sky", "space": 0.95, "echo": 0, "motion": 0.5, "tone": 0.5,
-//     "mix": 0.4 }
+//     "mix": 0.4, "delay": 0, "delayNote": "1/8d", "duck": 0 }
+// ("echo" is Reflect's value: the knob was renamed, the key stays so old files keep working.
+// "delay" is the Echo knob. The last three are left out of older files: they mean 0, 1/8d, 0.)
 // (Freeze is out for now, kept on the branch feature/freeze; a "freeze" entry in older files is
 // ignored.)
 namespace spaceforge
@@ -22,8 +25,10 @@ struct Preset
 {
     juce::String name { "Init" };
     int mode = 0;
-    float space = dsp::MacroPositions::kInitSpace, echo = dsp::MacroPositions::kInitEcho;
+    float space = dsp::MacroPositions::kInitSpace, reflect = dsp::MacroPositions::kInitReflect;
     float motion = dsp::MacroPositions::kInitMotion, tone = dsp::MacroPositions::kInitTone, mix = plugin::kDefaultMix;
+    float delay = dsp::MacroPositions::kInitDelay, duck = dsp::MacroPositions::kInitDuck;
+    int delayNote = dsp::MacroPositions::kInitDelayNote;
 
     // Where it came from (not stored in the file).
     bool isFactory = false;

@@ -7,7 +7,10 @@
 namespace spaceforge::plugin
 {
 inline constexpr const char* kSpaceId = "space";
-inline constexpr const char* kEchoId = "echo";
+inline constexpr const char* kReflectId = "echo"; // Reflect (called Echo before; the id stays so old projects and presets work)
+inline constexpr const char* kDelayId = "delay";         // the Echo knob
+inline constexpr const char* kDelayNoteId = "delayNote"; // Echo's fixed note
+inline constexpr const char* kDuckId = "duck";
 inline constexpr const char* kMotionId = "motion";
 inline constexpr const char* kToneId = "tone";
 inline constexpr const char* kMixId = "mix";

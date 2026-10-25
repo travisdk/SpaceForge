@@ -10,7 +10,8 @@
 #include "presets/Variation.h"
 
 // Granular texture (Clouds) and echoes into the room (Cloud Seed), moved by the four macros
-// Space, Echo, Motion and Tone, plus Mix, in one of the Modes. Stereo out, mono or stereo in.
+// Space, Reflect, Motion and Tone, plus Mix, in one of the Modes; and the two small controls Echo
+// (sharp tempo-synced repeats at a fixed note) and Duck (the wet signal gives way while playing). Stereo out, mono or stereo in.
 // (Freeze is out for now, kept on the branch feature/freeze; the engine still has it.)
 class SpaceForgeProcessor : public juce::AudioProcessor, public juce::ChangeBroadcaster
 {
@@ -109,11 +110,15 @@ public:
 private:
     juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
     int currentMode() const;
+    int currentDelayNote() const;
     void updateEngine();
 
     juce::AudioProcessorValueTreeState apvts;
     std::atomic<float>* spaceValue = nullptr;
-    std::atomic<float>* echoValue = nullptr;
+    std::atomic<float>* reflectValue = nullptr;
+    std::atomic<float>* delayValue = nullptr;
+    std::atomic<float>* delayNoteValue = nullptr;
+    std::atomic<float>* duckValue = nullptr;
     std::atomic<float>* motionValue = nullptr;
     std::atomic<float>* toneValue = nullptr;
     std::atomic<float>* mixValue = nullptr;
