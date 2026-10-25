@@ -270,12 +270,15 @@ void testSettings()
         CHECK (! view->macro (0).isAnimating());
         view->setTooltips (false);
         CHECK (! view->tooltipsOn());
+        view->setBrowserOpen (false); // the presets folded away: a narrower window
+        CHECK (editor->getWidth() == SpaceForgeEditor::kCompactWidth * 3 / 2);
     }
     {
         std::unique_ptr<juce::AudioProcessorEditor> editor (p.createEditor());
         auto* view = dynamic_cast<SpaceForgeEditor*> (editor.get());
         CHECK (theme::glow == theme::accentChoices()[4].colour);
-        CHECK (std::abs (view->uiScale() - 1.5f) < 0.01f && ! view->animationsOn() && ! view->tooltipsOn());
+        CHECK (std::abs (view->uiScale() - 1.5f) < 0.01f && ! view->animationsOn() && ! view->tooltipsOn() && ! view->browserOpen());
+        view->setBrowserOpen (true);
         view->setAccent (theme::accentChoices().front().colour);
         view->setUiScale (1.0f);
         view->setAnimations (true);

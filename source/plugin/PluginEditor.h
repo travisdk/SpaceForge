@@ -28,12 +28,13 @@ public:
     bool keyPressed (const juce::KeyPress&) override;
 
     static constexpr int kWidth = 980, kHeight = 600;
+    static constexpr int kCompactWidth = 600; // the presets folded away
     static constexpr int kNumMacros = 4;
 
     // A button drawn from a path: arrows, the heart, the dice, undo (from SpaceForge 1).
     struct ShapeButton : juce::Button
     {
-        enum class Shape { Left, Right, Heart, Dice, Back, Lock, Gear };
+        enum class Shape { Left, Right, Heart, Dice, Back, Lock, Gear, Sidebar };
         ShapeButton (Shape, const juce::String& tooltip);
         void paintButton (juce::Graphics&, bool highlighted, bool down) override;
         Shape shape;
@@ -59,6 +60,9 @@ public:
     void setAnimations (bool on);
     bool animationsOn() const { return cloud.isAnimated(); }
     void setTooltips (bool on);
+    // The preset browser shown, or folded away (the window gets narrower).
+    void setBrowserOpen (bool open);
+    bool browserOpen() const { return browser.isVisible(); }
     bool tooltipsOn() const { return tooltips != nullptr; }
     static constexpr float kScales[] = { 0.75f, 1.0f, 1.25f, 1.5f, 2.0f };
     static juce::String aboutText();
@@ -90,6 +94,7 @@ private:
     bool sortKey (const juce::KeyPress&);
     void applySizeLimits();
     int designHeight() const { return kHeight + (sorter != nullptr ? kSortHeight : 0); }
+    int designWidth() const { return browserOpen() ? kWidth : kCompactWidth; }
     static constexpr int kSortHeight = 64;
 
     SpaceForgeProcessor& processor;
@@ -107,6 +112,7 @@ private:
     ShapeButton modeLock { ShapeButton::Shape::Lock, "Mode lock: closed = the dice keeps the Mode, open = the dice picks a Mode too" };
     ShapeButton undo { ShapeButton::Shape::Back, "Undo the last roll (Ctrl+Z)" };
     ShapeButton gear { ShapeButton::Shape::Gear, "Settings" };
+    ShapeButton browserToggle { ShapeButton::Shape::Sidebar, "Show or hide the presets" };
     juce::TextButton save { "Save" };
     juce::Label presetName, presetInfo;
 

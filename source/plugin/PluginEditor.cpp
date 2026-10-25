@@ -136,6 +136,18 @@ void SpaceForgeEditor::ShapeButton::paintButton (juce::Graphics& g, bool highlig
             g.drawEllipse (juce::Rectangle<float> (inner * 2.0f, inner * 2.0f).withCentre (centre), outer * 0.28f);
             return;
         }
+        case Shape::Sidebar:
+        {
+            // a window with a panel on the left; the panel filled while the presets show
+            g.setColour (colour);
+            g.drawRoundedRectangle (area, 2.0f, 1.6f);
+            const auto panel = area.withWidth (area.getWidth() * 0.36f);
+            if (getToggleState())
+                g.fillRoundedRectangle (panel, 2.0f);
+            else
+                g.drawLine (panel.getRight(), area.getY(), panel.getRight(), area.getBottom(), 1.6f);
+            return;
+        }
         case Shape::Dice:
         {
             // the five face: rounded square with five pips
@@ -184,6 +196,8 @@ SpaceForgeEditor::SpaceForgeEditor (SpaceForgeProcessor& p)
     content.addAndMakeVisible (save);
     gear.onClick = [this] { showSettingsMenu(); };
     content.addAndMakeVisible (gear);
+    browserToggle.onClick = [this] { setBrowserOpen (! browserOpen()); };
+    content.addAndMakeVisible (browserToggle);
 
     presetName.setFont (theme::font (22.0f, true));
     presetName.setColour (juce::Label::textColourId, theme::text);
@@ -264,6 +278,9 @@ SpaceForgeEditor::SpaceForgeEditor (SpaceForgeProcessor& p)
                    : theme::accentChoices().front().colour);
     setTooltips (settings.getBoolValue ("tooltips", true));
     setAnimations (settings.getBoolValue ("animations", true));
+    browser.setVisible (settings.getBoolValue ("browser", true));
+    logo.setVisible (browserOpen());
+    browserToggle.setToggleState (browserOpen(), juce::dontSendNotification);
     scale = (float) settings.getDoubleValue ("scale", 1.0);
     if (std::none_of (std::begin (kScales), std::end (kScales), [this] (float s) { return std::abs (s - scale) < 0.01f; }))
         scale = 1.0f;
@@ -470,6 +487,16 @@ void SpaceForgeEditor::setAnimations (bool on)
     processor.settings().setValue ("animations", on);
 }
 
+void SpaceForgeEditor::setBrowserOpen (bool open)
+{
+    browser.setVisible (open);
+    logo.setVisible (open);
+    browserToggle.setToggleState (open, juce::dontSendNotification);
+    processor.settings().setValue ("browser", open);
+    applySizeLimits();
+    resized();
+}
+
 void SpaceForgeEditor::setTooltips (bool on)
 {
     if (on && tooltips == nullptr)
@@ -593,10 +620,10 @@ bool SpaceForgeEditor::keyPressed (const juce::KeyPress& key)
 
 void SpaceForgeEditor::applySizeLimits()
 {
-    setResizeLimits (juce::roundToInt (kWidth * kMinScale), juce::roundToInt (designHeight() * kMinScale),
-                     juce::roundToInt (kWidth * kMaxScale), juce::roundToInt (designHeight() * kMaxScale));
-    getConstrainer()->setFixedAspectRatio ((double) kWidth / (double) designHeight());
-    setSize (juce::roundToInt (kWidth * scale), juce::roundToInt (designHeight() * scale));
+    setResizeLimits (juce::roundToInt (designWidth() * kMinScale), juce::roundToInt (designHeight() * kMinScale),
+                     juce::roundToInt (designWidth() * kMaxScale), juce::roundToInt (designHeight() * kMaxScale));
+    getConstrainer()->setFixedAspectRatio ((double) designWidth() / (double) designHeight());
+    setSize (juce::roundToInt (designWidth() * scale), juce::roundToInt (designHeight() * scale));
 }
 
 juce::File SpaceForgeEditor::sortFolderFromCommandLine()
@@ -682,7 +709,7 @@ void SpaceForgeEditor::paint (juce::Graphics& g)
 void SpaceForgeEditor::resized()
 {
     // lay out at the design size, then scale to the window
-    content.setBounds (0, 0, kWidth, designHeight());
+    content.setBounds (0, 0, designWidth(), designHeight());
     auto area = content.getLocalBounds().reduced (14);
     if (sorter != nullptr)
     {
@@ -691,17 +718,29 @@ void SpaceForgeEditor::resized()
         sortHelp.setBounds (strip.removeFromTop (22));
     }
 
-    // left: the logo and the browser
-    auto left = area.removeFromLeft (kBrowserWidth);
-    auto logoRow = left.removeFromTop (34);
-    gear.setBounds (logoRow.removeFromRight (34).withSizeKeepingCentre (30, 30));
-    logo.setBounds (logoRow.withTrimmedLeft (2));
-    left.removeFromTop (4);
-    browser.setBounds (left);
-    area.removeFromLeft (14);
+    // left: the logo, the settings and the browser (when shown)
+    auto header = area.withHeight (kHeaderHeight);
+    if (browserOpen())
+    {
+        auto left = area.removeFromLeft (kBrowserWidth);
+        auto logoRow = left.removeFromTop (34);
+        gear.setBounds (logoRow.removeFromRight (34).withSizeKeepingCentre (30, 30));
+        logo.setBounds (logoRow.withTrimmedLeft (2));
+        left.removeFromTop (4);
+        browser.setBounds (left);
+        area.removeFromLeft (14);
+        header = area.removeFromTop (kHeaderHeight);
+        browserToggle.setBounds (header.removeFromLeft (30).withSizeKeepingCentre (30, 30));
+    }
+    else
+    {
+        // folded: the toggle and the settings at the start of the header
+        header = area.removeFromTop (kHeaderHeight);
+        browserToggle.setBounds (header.removeFromLeft (30).withSizeKeepingCentre (30, 30));
+        gear.setBounds (header.removeFromLeft (32).withSizeKeepingCentre (30, 30));
+    }
 
     // header: < name > and the actions, the Modes under it
-    auto header = area.removeFromTop (kHeaderHeight);
     auto actions = header.removeFromRight (184).withSizeKeepingCentre (184, 34);
     save.setBounds (actions.removeFromRight (70));
     actions.removeFromRight (8);
@@ -709,7 +748,6 @@ void SpaceForgeEditor::resized()
     dice.setBounds (actions.removeFromRight (34));
     actions.removeFromRight (4);
     favourite.setBounds (actions.removeFromRight (34));
-    header.removeFromLeft (6);
     previous.setBounds (header.removeFromLeft (34).withSizeKeepingCentre (34, 34));
     next.setBounds (header.removeFromRight (34).withSizeKeepingCentre (34, 34));
     presetName.setBounds (header.removeFromTop (44).withTrimmedTop (8));
@@ -722,21 +760,23 @@ void SpaceForgeEditor::resized()
     for (auto& button : modeButtons)
         button->setBounds (modes.removeFromLeft (modeWidth));
 
-    // Mix alone in the bottom-right corner
-    auto corner = area.removeFromBottom (kMixSize).removeFromRight (kMixSize + 10);
+    // Mix alone in the bottom-right corner, in a strip of its own beside the knobs
+    auto mixStrip = area.removeFromRight (kMixSize);
+    auto corner = mixStrip.removeFromBottom (kMixSize);
     mix.setBounds (corner.removeFromTop (72).withSizeKeepingCentre (68, 68));
     mixLabel.setBounds (corner.removeFromTop (20));
     mixValue.setBounds (corner.removeFromTop (18));
 
-    // the cloud behind the four macros, the macros in front of it, side by side
-    const auto knobsArea = area.withTrimmedBottom (-kMixSize / 2);
-    cloud.setBounds (knobsArea);
-    const auto row = knobsArea.reduced (2, 10);
-    const int w = row.getWidth() / kNumMacros;
-    auto m = row;
-    const int knob = juce::roundToInt ((float) w * 0.78f);
+    // the four macros in a 2 x 2 grid (room for the scales' words), the cloud behind them
+    cloud.setBounds (area);
+    const auto grid = area.reduced (4, 6);
+    const int cellW = grid.getWidth() / 2, cellH = grid.getHeight() / 2;
+    const int knob = juce::jmin (juce::roundToInt ((float) cellW * 0.6f), cellH - MacroKnob::kTextHeight - 6);
     for (int k = 0; k < kNumMacros; ++k)
-        macros[(size_t) k]->setBounds (m.removeFromLeft (w).withSizeKeepingCentre (w - 6, juce::jmin (row.getHeight(), knob + MacroKnob::kTextHeight)));
+    {
+        const juce::Rectangle<int> cell (grid.getX() + (k % 2) * cellW, grid.getY() + (k / 2) * cellH, cellW, cellH);
+        macros[(size_t) k]->setBounds (cell.withSizeKeepingCentre (cellW - 8, knob + MacroKnob::kTextHeight));
+    }
 
-    content.setTransform (juce::AffineTransform::scale ((float) getWidth() / (float) kWidth));
+    content.setTransform (juce::AffineTransform::scale ((float) getWidth() / (float) designWidth()));
 }

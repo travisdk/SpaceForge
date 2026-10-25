@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 // Renders the interface of a fresh instance to a PNG, for checking the layout (from SpaceForge 1):
-//   sf2_screenshot <output.png> [scale] [knobs=s,e,m,t] [freeze] [play=seconds] [sort=folder]
-// sort= shows the sorting mode with the candidates in that folder.
+//   sf2_screenshot <output.png> [scale] [knobs=s,e,m,t] [play=seconds] [sort=folder] [compact]
+// sort= shows the sorting mode with the candidates in that folder; compact folds the presets away.
+// Always the default settings (a settings file of its own), never the user's.
 // knobs= sets Space, Echo, Motion and Tone (0..1); play= runs the bleeps test sound through the
 // plug-in for that long and lets the picture follow, so echo rings and the auto-pan show.
 
@@ -17,11 +18,13 @@ int main (int argc, char* argv[])
 {
     if (argc < 2)
     {
-        std::cerr << "usage: sf2_screenshot <output.png> [scale] [knobs=s,e,m,t] [freeze] [play=seconds] [sort=folder]\n";
+        std::cerr << "usage: sf2_screenshot <output.png> [scale] [knobs=s,e,m,t] [play=seconds] [sort=folder] [compact]\n";
         return 1;
     }
 
     const juce::ScopedJuceInitialiser_GUI gui;
+    const juce::TemporaryFile settings ("settings");
+    SpaceForgeProcessor::setSettingsFileForTests (settings.getFile());
     const std::unique_ptr<juce::AudioProcessor> plugin (createPluginFilter());
     auto& processor = dynamic_cast<SpaceForgeProcessor&> (*plugin);
     const float scale = argc > 2 && ! juce::String (argv[2]).containsChar ('=') ? juce::String (argv[2]).getFloatValue() : 1.0f;
@@ -44,7 +47,9 @@ int main (int argc, char* argv[])
     std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
     auto* view = dynamic_cast<SpaceForgeEditor*> (editor.get());
     for (int i = 2; i < argc; ++i)
-        if (juce::String (argv[i]).startsWith ("sort="))
+        if (juce::String (argv[i]) == "compact")
+            view->setBrowserOpen (false);
+        else if (juce::String (argv[i]).startsWith ("sort="))
             view->startSorting (juce::File::getCurrentWorkingDirectory().getChildFile (juce::String (argv[i]).fromFirstOccurrenceOf ("=", false, false)));
     if (playSeconds > 0.0f)
     {
