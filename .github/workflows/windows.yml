@@ -34,7 +34,9 @@ jobs:
       - name: Test
         run: ctest --test-dir build -C Release --output-on-failure --timeout 300
 
+      # Collected even if a test fails, so the build can be tried out while the failure is looked into
       - name: Collect plug-ins
+        if: ${{ !cancelled() }}
         shell: bash
         run: |
           mkdir -p dist
@@ -43,6 +45,7 @@ jobs:
           cp build/SpaceForge_artefacts/Release/Standalone/SpaceForge.exe dist/
 
       - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
         with:
           name: SpaceForge-windows
           path: dist
