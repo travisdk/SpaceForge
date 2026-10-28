@@ -74,7 +74,8 @@ add_library(clouds STATIC
     third_party/eurorack/stmlib/dsp/units.cc
     third_party/eurorack/stmlib/utils/random.cc)
 target_include_directories(clouds SYSTEM PUBLIC third_party/eurorack)
-target_compile_definitions(clouds PUBLIC TEST)
+# _USE_MATH_DEFINES: MSVC only defines M_PI with it (stmlib uses it)
+target_compile_definitions(clouds PUBLIC TEST _USE_MATH_DEFINES)
 set_target_properties(clouds PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # ---------------------------------------------------------------------------------------------
