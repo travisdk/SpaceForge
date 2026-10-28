@@ -1,0 +1,48 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+name: Windows build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      # The exact versions from THIRD_PARTY.md, placed where CMakeLists.txt looks for them
+      # (%USERPROFILE%\SDKs).
+      - name: Fetch JUCE and clap-juce-extensions
+        shell: bash
+        run: |
+          mkdir -p "$USERPROFILE/SDKs"
+          git clone --depth 1 --branch 8.0.15 https://github.com/juce-framework/JUCE.git "$USERPROFILE/SDKs/JUCE-8.0.15"
+          git clone https://github.com/free-audio/clap-juce-extensions.git "$USERPROFILE/SDKs/clap-juce-extensions-main"
+          git -C "$USERPROFILE/SDKs/clap-juce-extensions-main" checkout 7adee3a1bd4684d4caa5601100e364abccff4b4d
+          git -C "$USERPROFILE/SDKs/clap-juce-extensions-main" submodule update --init --recursive
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DSPACEFORGE_INSTALL_AFTER_BUILD=OFF
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure --timeout 300
+
+      - name: Collect plug-ins
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp -r build/SpaceForge_artefacts/Release/VST3/SpaceForge.vst3 dist/
+          cp build/SpaceForge_artefacts/Release/CLAP/SpaceForge.clap dist/
+          cp build/SpaceForge_artefacts/Release/Standalone/SpaceForge.exe dist/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SpaceForge-windows
+          path: dist
