@@ -76,6 +76,9 @@ add_library(clouds STATIC
 target_include_directories(clouds SYSTEM PUBLIC third_party/eurorack)
 # _USE_MATH_DEFINES: MSVC only defines M_PI with it (stmlib uses it)
 target_compile_definitions(clouds PUBLIC TEST _USE_MATH_DEFINES)
+if (MSVC)
+    target_compile_options(clouds PUBLIC $<$<COMPILE_LANGUAGE:CXX>:/FI${CMAKE_CURRENT_SOURCE_DIR}/source/compat/StmlibMsvcCompat.h>)
+endif()
 set_target_properties(clouds PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # ---------------------------------------------------------------------------------------------
