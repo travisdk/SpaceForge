@@ -1,0 +1,11 @@
+{
+    "name": "Tiled Corridor",
+    "mode": "Room",
+    "space": 0.5,
+    "reflect": 0.1,
+    "motion": 0.35,
+    "tone": 0.5,
+    "mix": 0.4,
+    "echo": 0.3,
+    "echoNote": "1/16"
+}

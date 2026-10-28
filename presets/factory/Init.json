@@ -1,0 +1,9 @@
+{
+    "name": "Init",
+    "mode": "Sky",
+    "space": 0.95,
+    "reflect": 0,
+    "motion": 0.5,
+    "tone": 0.5,
+    "mix": 0.4
+}

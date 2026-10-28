@@ -1,0 +1,9 @@
+{
+    "name": "Deep Freeze",
+    "mode": "Spectral",
+    "space": 0.92,
+    "reflect": 0.46,
+    "motion": 0.4,
+    "tone": 0.26,
+    "mix": 0.4
+}

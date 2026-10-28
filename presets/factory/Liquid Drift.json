@@ -1,0 +1,9 @@
+{
+    "name": "Liquid Drift",
+    "mode": "Smear",
+    "space": 1,
+    "reflect": 0.7,
+    "motion": 0.95,
+    "tone": 0.09,
+    "mix": 0.4
+}

@@ -1,0 +1,9 @@
+{
+    "name": "Low Ceiling",
+    "mode": "Room",
+    "space": 0.25,
+    "reflect": 0,
+    "motion": 0.15,
+    "tone": 0.25,
+    "mix": 0.4
+}

@@ -1,0 +1,9 @@
+{
+    "name": "Weather Front",
+    "mode": "Sky",
+    "space": 0.8,
+    "reflect": 0.81,
+    "motion": 0.73,
+    "tone": 0.66,
+    "mix": 0.4
+}

@@ -1,0 +1,9 @@
+{
+    "name": "Endless Nave",
+    "mode": "Hall",
+    "space": 0.97,
+    "reflect": 0.01,
+    "motion": 1,
+    "tone": 0.1,
+    "mix": 0.4
+}

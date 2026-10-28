@@ -1,0 +1,9 @@
+{
+    "name": "Concrete Cell",
+    "mode": "Room",
+    "space": 0.3,
+    "reflect": 0,
+    "motion": 0.1,
+    "tone": 0.65,
+    "mix": 0.4
+}

@@ -1,0 +1,9 @@
+{
+    "name": "Ice Lattice",
+    "mode": "Spectral",
+    "space": 0.57,
+    "reflect": 0.07,
+    "motion": 0.8,
+    "tone": 0.69,
+    "mix": 0.4
+}

@@ -1,0 +1,9 @@
+{
+    "name": "Frozen Taps",
+    "mode": "Spectral",
+    "space": 0.57,
+    "reflect": 0.47,
+    "motion": 0.06,
+    "tone": 0.51,
+    "mix": 0.4
+}

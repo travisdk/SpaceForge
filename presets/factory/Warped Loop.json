@@ -1,0 +1,9 @@
+{
+    "name": "Warped Loop",
+    "mode": "Smear",
+    "space": 0.31,
+    "reflect": 0.09,
+    "motion": 0.7,
+    "tone": 0.89,
+    "mix": 0.4
+}

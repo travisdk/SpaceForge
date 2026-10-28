@@ -1,0 +1,9 @@
+{
+    "name": "Warm Steel",
+    "mode": "Plate",
+    "space": 0.42,
+    "reflect": 0.33,
+    "motion": 0.45,
+    "tone": 0.56,
+    "mix": 0.4
+}

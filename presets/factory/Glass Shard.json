@@ -1,0 +1,9 @@
+{
+    "name": "Glass Shard",
+    "mode": "Spectral",
+    "space": 0.31,
+    "reflect": 0.03,
+    "motion": 0.31,
+    "tone": 0.61,
+    "mix": 0.4
+}

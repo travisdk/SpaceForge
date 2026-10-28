@@ -1,0 +1,17 @@
+build/
+build-*/
+.cache/
+compile_commands.json
+dist/
+renders/
+
+# Claude Code
+.claude/
+CLAUDE.local.md
+
+# Local sound sketches and other private files
+private/
+
+# Internal working material
+CLAUDE.md
+presets/candidates/

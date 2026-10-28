@@ -1,0 +1,49 @@
+// Copyright (C) 2026 Henrik Juhl. Part of SpaceForge, licensed under the GNU AGPLv3 (see LICENSE).
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+#pragma once
+
+#include <functional>
+#include <juce_audio_processors/juce_audio_processors.h>
+
+// A big rotary control for one of the fixed macros (from SpaceForge 1): its name underneath and,
+// below that, what it is doing right now: in real units ("104 s", "1/8d · 3x"), or for Motion
+// and Tone a drawn scale between two fixed words ("dark ▮▮▮▯▯ bright"), with an optional line
+// under it ("pan 2 bars"). Nothing in it moves sideways. Double-click returns to Init.
+class MacroKnob : public juce::Component, private juce::Timer
+{
+public:
+    MacroKnob (juce::AudioProcessorValueTreeState&, const juce::String& parameterId, const juce::String& name,
+               const juce::String& hint, juce::Colour accent, float initValue);
+
+    void setValueText (const juce::String& text);
+    // shows a scale between two fixed words instead of a value, and a line under it
+    void setScale (const juce::String& low, const juce::String& high, float position01, const juce::String& below = {});
+    // Glides the knob on screen from `from` to `to` (0..1) in 250 ms (from SpaceForge 1). Purely
+    // visual: the parameter already has its new value and the sound has already switched.
+    void animate (float from, float to);
+    bool isAnimating() const { return isTimerRunning(); }
+    void resized() override;
+    void paint (juce::Graphics&) override;
+    void mouseEnter (const juce::MouseEvent&) override { repaint(); }
+    void mouseExit (const juce::MouseEvent&) override { repaint(); }
+    void mouseDown (const juce::MouseEvent&) override;
+    // Clicking the text under the knob (not the knob): for a fixed choice shown there (Echo's note).
+    std::function<void()> onTextClick;
+
+    // what is shown under the knob (for the tests: the same as the DAW's text)
+    const juce::String& getValueText() const { return valueText; }
+
+    juce::Slider slider { juce::Slider::RotaryHorizontalVerticalDrag, juce::Slider::NoTextBox };
+
+    static constexpr int kTextHeight = 56;
+
+private:
+    void timerCallback() override;
+
+    float animFrom = 0.0f, animTo = 0.0f;
+    double animStartMs = 0.0;
+    juce::String name, valueText, scaleLow, scaleHigh, belowText;
+    float scalePosition = -1.0f; // < 0: show valueText
+    juce::AudioProcessorValueTreeState::SliderAttachment attachment;
+};

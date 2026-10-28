@@ -1,0 +1,9 @@
+{
+    "name": "Ember Flick",
+    "mode": "Shimmer",
+    "space": 0.01,
+    "reflect": 0,
+    "motion": 0.36,
+    "tone": 0.33,
+    "mix": 0.4
+}

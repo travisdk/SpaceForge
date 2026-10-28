@@ -1,0 +1,9 @@
+{
+    "name": "Bright Foil",
+    "mode": "Plate",
+    "space": 0.48,
+    "reflect": 0.08,
+    "motion": 0.27,
+    "tone": 0.98,
+    "mix": 0.4
+}

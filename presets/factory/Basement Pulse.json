@@ -1,0 +1,9 @@
+{
+    "name": "Basement Pulse",
+    "mode": "Room",
+    "space": 0.6,
+    "reflect": 0,
+    "motion": 0.65,
+    "tone": 0.2,
+    "mix": 0.4
+}

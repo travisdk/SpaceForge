@@ -1,0 +1,9 @@
+{
+    "name": "Worn Reel",
+    "mode": "Smear",
+    "space": 0.24,
+    "reflect": 0.01,
+    "motion": 0.4,
+    "tone": 0.08,
+    "mix": 0.4
+}
