@@ -24,6 +24,7 @@ THE SOFTWARE.
 
 #include "ModulatedAllpass.h"
 #include "Utils.h"
+#include "ModPhaseRandom.h"
 #include <cmath>
 
 namespace Cloudseed
@@ -60,7 +61,7 @@ namespace Cloudseed
 			index = DelayBufferSize - 1;
 			samplesProcessed = 0;
 
-			modPhase = 0.01 + 0.98 * std::rand() / (float)RAND_MAX;
+			modPhase = 0.01 + 0.98 * ModPhaseRandom::Next(); // SpaceForge: was std::rand()
 			delayA = 0;
 			delayB = 0;
 			gainA = 0;

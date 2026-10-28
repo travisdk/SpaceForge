@@ -46,7 +46,7 @@ namespace
 {
 std::unique_ptr<dsp::SpaceEngine> makeEngine (double rate)
 {
-    std::srand (1); // Cloud Seed seeds its modulation phases from std::rand
+    Cloudseed::ModPhaseRandom::Seed (1); // Cloud Seed seeds its modulation phases from Cloudseed::ModPhaseRandom
     auto engine = std::make_unique<dsp::SpaceEngine>();
     engine->prepare (rate);
     return engine;
@@ -58,7 +58,7 @@ std::unique_ptr<dsp::SpaceEngine> makeMediumEngine (double rate)
 {
     dsp::MacroPositions medium;
     medium.space = 0.5f;
-    std::srand (1);
+    Cloudseed::ModPhaseRandom::Seed (1);
     auto engine = std::make_unique<dsp::SpaceEngine>();
     engine->setMacros (medium);
     engine->prepare (rate);
@@ -80,7 +80,7 @@ void testCharacterTargets()
     std::printf ("Character at 48 kHz, Space 80 %% (the room as in phase 2), against the targets:\n");
     dsp::MacroPositions room;
     room.space = 0.8f;
-    std::srand (1);
+    Cloudseed::ModPhaseRandom::Seed (1);
     auto engine = std::make_unique<dsp::SpaceEngine>();
     engine->setMacros (room);
     engine->prepare (48000.0);

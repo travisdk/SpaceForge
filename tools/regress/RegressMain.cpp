@@ -8,7 +8,7 @@
 //   sf2_regress compare DIR_A DIR_B             the difference between two dumps in dB against the
 //                                               signal (-inf: bit for bit the same), one row per preset
 //
-// The engine gets the same random start (std::srand) every time, so two dumps of the same code
+// The engine gets the same random start (Cloudseed::ModPhaseRandom::Seed) every time, so two dumps of the same code
 // are identical.
 
 #include <algorithm>
@@ -74,7 +74,7 @@ int dump (const fs::path& out, const std::vector<fs::path>& folders)
             p.tone = (float) number (text, "tone", p.tone);
             const float mix = (float) number (text, "mix", plugin::kDefaultMix);
 
-            std::srand (1);
+            Cloudseed::ModPhaseRandom::Seed (1);
             dsp::SpaceEngine engine;
             engine.setMacros (p);
             engine.prepare (kRate);

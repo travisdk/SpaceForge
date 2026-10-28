@@ -5,6 +5,7 @@
 
 #include <array>
 #include <memory>
+#include "DSP/ModPhaseRandom.h"
 #include "dsp/EchoEngine.h"
 #include "dsp/Macros.h"
 #include "dsp/SpaceVoicing.h"

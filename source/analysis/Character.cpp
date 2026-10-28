@@ -13,12 +13,12 @@ namespace
 {
 size_t at (double seconds, double sampleRate) { return (size_t) (seconds * sampleRate); }
 
-// Cloud Seed starts each delay line's modulation at a random phase (std::rand). Two engines
-// built after the same srand are identical; a different seed gives the same room with other
+// Cloud Seed starts each delay line's modulation at a random phase (ModPhaseRandom). Two engines
+// built after the same Seed are identical; a different seed gives the same room with other
 // random detail.
 std::unique_ptr<dsp::SpaceEngine> twinEngine (const dsp::SpaceVoicing& voicing, const dsp::MacroPositions& macros, double sampleRate, unsigned seed = 7)
 {
-    std::srand (seed);
+    Cloudseed::ModPhaseRandom::Seed (seed);
     auto engine = std::make_unique<dsp::SpaceEngine>();
     engine->setVoicing (voicing);
     engine->setMacros (macros);

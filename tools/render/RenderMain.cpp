@@ -113,7 +113,7 @@ const char* kMacroNames[] = { "space", "reflect", "motion", "tone" };
 
 std::unique_ptr<dsp::SpaceEngine> makeEngine (const dsp::SpaceVoicing& voicing, const dsp::MacroPositions& macros)
 {
-    std::srand (1);
+    Cloudseed::ModPhaseRandom::Seed (1);
     auto engine = std::make_unique<dsp::SpaceEngine>();
     engine->setVoicing (voicing);
     engine->setMacros (macros);
@@ -219,7 +219,7 @@ void calibrate (const dsp::SpaceVoicing& voicing)
 // An engine in one Mode (its voicing changed by `adjust`, for calibrating).
 std::unique_ptr<dsp::SpaceEngine> makeModeEngine (int mode, dsp::MacroPositions macros, const std::function<void (dsp::SpaceVoicing&)>& adjust = {})
 {
-    std::srand (1);
+    Cloudseed::ModPhaseRandom::Seed (1);
     auto engine = std::make_unique<dsp::SpaceEngine>();
     macros.mode = mode;
     engine->setMacros (macros);
@@ -387,7 +387,7 @@ void modesReport (const std::string& outDir)
 
     // How different: the pad's tail, band by band over time (dB), each Mode against each other.
     // For scale: the same Mode with another random start.
-    std::srand (99);
+    Cloudseed::ModPhaseRandom::Seed (99);
     dsp::MacroPositions p;
     p.space = 0.5f;
     auto other = std::make_unique<dsp::SpaceEngine>();

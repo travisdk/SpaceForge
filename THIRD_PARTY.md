@@ -30,6 +30,10 @@ Notes:
   - Cloud Seed, `DSP/ReverbChannel.h`: caches the per-line random values and regenerates them
     only when a seed changes. The original regenerated them (allocating a `std::vector`) on
     every decay, size or modulation change, which must not happen on the audio thread.
+  - Cloud Seed, `DSP/ModulatedDelay.h`, `DSP/ModulatedAllpass.h`, new `DSP/ModPhaseRandom.h`: the
+    start phase of the modulation came from `std::rand()`, which differs between C libraries
+    (glibc, MSVC), so the sound differed slightly per platform. Now a small LCG with a fixed
+    start value, the same on every platform.
   - Cloud Seed, `DSP/ReverbChannel.h`, `DSP/Hp1.h`, `DSP/Lp1.h`: the input was zeroed sample by
     sample below -90 dBFS (against CPU spikes from tiny numbers), a dead zone around zero that
     distorted every quiet signal into hiss; and the input filters cut off any negative state at

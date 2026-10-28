@@ -239,7 +239,7 @@ void testFactory()
     const auto pad = analysis::makePad (rate, 8.0).audio;
     const auto from = (size_t) (6.0 * rate);
     auto fresh = [] {
-        std::srand (1);
+        Cloudseed::ModPhaseRandom::Seed (1);
         auto engine = std::make_unique<dsp::SpaceEngine>();
         engine->prepare (rate);
         return engine;

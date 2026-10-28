@@ -21,7 +21,7 @@ constexpr int kPositions[] = { 0, 25, 50, 75, 100 };
 
 std::unique_ptr<dsp::SpaceEngine> makeEngine (const dsp::MacroPositions& macros, bool grains = true)
 {
-    std::srand (1);
+    Cloudseed::ModPhaseRandom::Seed (1);
     auto engine = std::make_unique<dsp::SpaceEngine>();
     dsp::SpaceVoicing voicing;
     voicing.grainsEnabled = grains;
@@ -193,7 +193,7 @@ void testMotion()
     const auto pad = analysis::makePad (kRate, 2.0).audio;
     auto still = makeEngine (with (&dsp::MacroPositions::motion, 0.0));
     const auto figureStill = renderWet (*still, figure);
-    std::srand (99);
+    Cloudseed::ModPhaseRandom::Seed (99);
     auto other = std::make_unique<dsp::SpaceEngine>();
     other->setMacros (with (&dsp::MacroPositions::motion, 0.0));
     other->prepare (kRate);
