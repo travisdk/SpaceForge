@@ -4,8 +4,8 @@
 #pragma once
 
 #include <array>
+#include <cstdint>
 #include <memory>
-#include "DSP/ModPhaseRandom.h"
 #include "dsp/EchoEngine.h"
 #include "dsp/Macros.h"
 #include "dsp/SpaceVoicing.h"
@@ -42,7 +42,13 @@ public:
     SpaceEngine();  // allocates the delay lines (about 70 MB)
     ~SpaceEngine();
 
+    // Prepares for a sample rate and gives every delay line in the room its modulation start phase
+    // from this engine's own generator (seed 1 unless set), so all instances, and every reopening
+    // of a project, start alike, and on every platform. May allocate.
     void prepare (double sampleRate);
+    // Another start (another seed gives the same room with other random detail): for the offline
+    // tools and tests. Takes effect at once and stays through later prepare() calls.
+    void setModulationSeed (uint32_t seed);
     // The voicing of the current Mode (for the offline tools: Init's Mode unless set otherwise).
     void setVoicing (const SpaceVoicing& voicing);
     const SpaceVoicing& voicing() const { return currentVoicing; }
@@ -89,8 +95,10 @@ private:
     void applyFreeze (bool on);
     void processChunk();
     void setDelayTimes();
+    void seedModulation();
 
     std::unique_ptr<Cloudseed::ReverbChannel> left, right;
+    uint32_t modulationSeed = 1;
     SpaceVoicing currentVoicing;
     int activeMode = 0;
     float modeFade = 1.0f, modeFadeStep = 0.0f; // wet gain while a Mode changes

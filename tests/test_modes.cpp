@@ -58,7 +58,6 @@ dsp::MacroPositions knobs (int mode, float space = 0.5f, float echo = 0.0f, floa
 
 std::unique_ptr<dsp::SpaceEngine> makeEngine (const dsp::MacroPositions& macros)
 {
-    Cloudseed::ModPhaseRandom::Seed (1);
     auto engine = std::make_unique<dsp::SpaceEngine>();
     engine->setMacros (macros);
     engine->prepare (kRate);

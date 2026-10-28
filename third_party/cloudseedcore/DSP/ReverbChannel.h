@@ -369,6 +369,18 @@ namespace Cloudseed
 			}
 		}
 
+		// SpaceForge: gives every modulated line its start phase from the engine's generator, in the
+		// order the members are declared and so were constructed: predelay, early diffuser, then
+		// each late line (its delay, then its diffuser). With seed 1 this is exactly the sequence
+		// std::rand() gave after srand(1) on Linux.
+		void SeedModPhases(ModPhaseRandom& random)
+		{
+			preDelay.SeedModPhase(random);
+			diffuser.SeedModPhases(random);
+			for (int i = 0; i < TotalLineCount; i++)
+				lines[i].SeedModPhases(random);
+		}
+
 		void ClearBuffers()
 		{
 			lowPass.ClearBuffers();

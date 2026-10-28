@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include "DSP/ModPhaseRandom.h"
 #include "DSP/ReverbChannel.h"
 
 namespace spaceforge::dsp
@@ -79,6 +80,7 @@ void SpaceEngine::prepare (double newSampleRate)
     chunk = std::clamp ((int) std::lround (kChunkSeconds * sampleRate), 16, kMaxChunk);
     left->SetSamplerate ((int) sampleRate);
     right->SetSamplerate ((int) sampleRate);
+    seedModulation();
     texture.prepare (sampleRate);
     echo.prepare (sampleRate);
     delay.prepare (sampleRate);
@@ -245,6 +247,21 @@ void SpaceEngine::setTempo (double newBpm, bool playing, double ppqPosition)
         bpm = newBpm;
     if (playing && std::isfinite (ppqPosition))
         ppq = ppqPosition;
+}
+
+void SpaceEngine::setModulationSeed (uint32_t seed)
+{
+    modulationSeed = seed;
+    seedModulation();
+}
+
+// One generator for the whole room, left channel first and then right: the order the lines were
+// once constructed in, which is what std::rand() used to be drawn in.
+void SpaceEngine::seedModulation()
+{
+    Cloudseed::ModPhaseRandom random (modulationSeed);
+    left->SeedModPhases (random);
+    right->SeedModPhases (random);
 }
 
 void SpaceEngine::reset()

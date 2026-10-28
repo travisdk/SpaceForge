@@ -59,7 +59,7 @@ namespace Cloudseed
 			readIndexB = 0;
 			samplesProcessed = 0;
 
-			modPhase = 0.01 + 0.98 * ModPhaseRandom::Next(); // SpaceForge: was std::rand()
+			modPhase = 0.5f;
 			gainA = 0;
 			gainB = 0;
 
@@ -68,6 +68,26 @@ namespace Cloudseed
 			ModRate = 0.0;
 
 			Update();
+		}
+
+		// SpaceForge: the start phase came from std::rand() in the constructor. Now set here from the
+		// engine's own generator; the expression is the original one, so the value is the same.
+		// Also puts the position, counter and gains back as the constructor left them (settings
+		// stay), so a line that is prepared again starts exactly like a new one.
+		void SeedModPhase(ModPhaseRandom& random)
+		{
+			const int sampleDelay = SampleDelay;
+			const float modAmount = ModAmount, modRate = ModRate;
+			writeIndex = 0;
+			samplesProcessed = 0;
+			SampleDelay = 100;
+			ModAmount = 0.0;
+			ModRate = 0.0;
+			modPhase = 0.01 + 0.98 * (random.NextInt() / (float)ModPhaseRandom::Max);
+			Update();
+			SampleDelay = sampleDelay;
+			ModAmount = modAmount;
+			ModRate = modRate;
 		}
 
 		void Process(float* input, float* output, int bufSize)

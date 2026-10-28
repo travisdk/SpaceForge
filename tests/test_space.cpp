@@ -46,7 +46,6 @@ namespace
 {
 std::unique_ptr<dsp::SpaceEngine> makeEngine (double rate)
 {
-    Cloudseed::ModPhaseRandom::Seed (1); // Cloud Seed seeds its modulation phases from Cloudseed::ModPhaseRandom
     auto engine = std::make_unique<dsp::SpaceEngine>();
     engine->prepare (rate);
     return engine;
@@ -58,7 +57,6 @@ std::unique_ptr<dsp::SpaceEngine> makeMediumEngine (double rate)
 {
     dsp::MacroPositions medium;
     medium.space = 0.5f;
-    Cloudseed::ModPhaseRandom::Seed (1);
     auto engine = std::make_unique<dsp::SpaceEngine>();
     engine->setMacros (medium);
     engine->prepare (rate);
@@ -73,6 +71,42 @@ double maxDifference (const analysis::Stereo& a, const analysis::Stereo& b)
     return d;
 }
 
+// Every instance of the room starts alike: its modulation phases come from its own generator,
+// seeded in prepare(), not from anything shared. So a second instance made after the first has
+// been played, and an instance prepared again before it plays (a host calling prepareToPlay more
+// than once, a project reopened), give the same output bit for bit; only another seed gives
+// other random detail. (Not claimed: preparing again after playing. Only the modulation start is
+// reset then.)
+void testInstancesAreIdentical()
+{
+    std::printf ("Two instances and a prepared-again one:\n");
+    constexpr double rate = 48000.0;
+    const auto pad = analysis::makePad (rate, 2.0).audio;
+    auto render = [&] (dsp::SpaceEngine& engine) { return analysis::render (engine, pad, rate); };
+
+    auto first = makeMediumEngine (rate);
+    const auto outFirst = render (*first);
+
+    auto second = makeMediumEngine (rate); // made after the first has been played
+    const auto outSecond = render (*second);
+
+    auto again = makeMediumEngine (rate);
+    again->prepare (rate);
+    again->reset();
+    const auto outAgain = render (*again);
+
+    auto other = makeMediumEngine (rate);
+    other->setModulationSeed (99);
+    const auto outOther = render (*other);
+
+    const double secondDiff = maxDifference (outFirst, outSecond), againDiff = maxDifference (outFirst, outAgain);
+    const double otherDiff = maxDifference (outFirst, outOther);
+    std::printf ("  second instance %.1e, prepared again %.1e, another seed %.1e (largest sample difference)\n", secondDiff, againDiff, otherDiff);
+    CHECK (secondDiff <= 0.0); // differences are never negative: this is "exactly zero"
+    CHECK (againDiff <= 0.0);
+    CHECK (otherDiff > 1.0e-4); // the test can tell a different start from the same one
+}
+
 void testCharacterTargets()
 {
     // The room's own character (measured without the sky) where its decay setting is the one
@@ -80,7 +114,6 @@ void testCharacterTargets()
     std::printf ("Character at 48 kHz, Space 80 %% (the room as in phase 2), against the targets:\n");
     dsp::MacroPositions room;
     room.space = 0.8f;
-    Cloudseed::ModPhaseRandom::Seed (1);
     auto engine = std::make_unique<dsp::SpaceEngine>();
     engine->setMacros (room);
     engine->prepare (48000.0);
@@ -255,6 +288,7 @@ int main()
     testHostileInput();
     testFreezeReleases();
     testSampleRates();
+    testInstancesAreIdentical();
     testCharacterTargets();
     return finish ("space");
 }

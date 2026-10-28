@@ -48,6 +48,13 @@ namespace Cloudseed
 			this->samplerate = samplerate;
 		}
 
+		// SpaceForge: left channel, then right (see ReverbChannel::SeedModPhases)
+		void SeedModPhases(ModPhaseRandom& random)
+		{
+			channelL.SeedModPhases(random);
+			channelR.SeedModPhases(random);
+		}
+
 		int GetSamplerate()
 		{
 			return samplerate;

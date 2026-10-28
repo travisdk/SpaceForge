@@ -2,10 +2,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // SpaceForge: replaces std::rand() for the start phase of the modulated delay lines and
-// allpasses. std::rand() gives a different sequence in every C library (glibc, MSVC), so the same
-// plug-in sounded slightly different per platform. A small LCG (the same technique as in
-// SubForge) with a fixed start value gives the same phases everywhere, in the same order of
-// construction. One sequence per thread: no locks, and the audio thread never touches it.
+// allpasses. std::rand() gives a different sequence in every C library (glibc, MSVC), so the
+// same plug-in sounded slightly different per platform.
+//
+// This is the algorithm behind glibc's random() (the default generator on Linux): an additive
+// feedback generator, r[i] = r[i-3] + r[i-31], started from a seed with a small multiplicative
+// generator and run in for 310 values. The code is written for SpaceForge from the algorithm
+// alone. With seed 1 it gives the same sequence as srand(1) on Linux, so the sound is the same
+// as before, on every platform.
+//
+// No global state: each engine owns a generator, seeds it when it is prepared and hands it to
+// the delay lines in a fixed order (see ReverbChannel::SeedModPhases).
 
 #pragma once
 
@@ -16,27 +23,57 @@ namespace Cloudseed
 	class ModPhaseRandom
 	{
 	public:
-		static constexpr uint32_t DefaultSeed = 0x12345678u;
+		// glibc's RAND_MAX, on every platform (MSVC's is 32767)
+		static constexpr int Max = 2147483647;
 
-		// Restarts the sequence: engines built after the same Seed() are identical
-		static void Seed(uint32_t seed)
+		explicit ModPhaseRandom(uint32_t seed = 1)
 		{
-			State() = seed;
+			Seed(seed);
 		}
 
-		// Next value in [0, 1)
-		static float Next()
+		void Seed(uint32_t seed)
 		{
-			uint32_t& s = State();
-			s = s * 1664525u + 1013904223u;
-			return (float)(s >> 8) / 16777216.0f;
+			if (seed == 0)
+				seed = 1;
+
+			// Start values: the first is the seed, the rest a "minimal standard" generator
+			// (16807 * x mod 2^31 - 1, computed without overflow) run from it
+			int32_t word = (int32_t)seed;
+			r[0] = (uint32_t)word;
+			for (int i = 1; i < Degree; i++)
+			{
+				const int32_t hi = word / 127773;
+				const int32_t lo = word % 127773;
+				word = 16807 * lo - 2836 * hi;
+				if (word < 0)
+					word += 2147483647;
+				r[i] = (uint32_t)word;
+			}
+
+			front = Separation;
+			rear = 0;
+			for (int i = 0; i < Degree * 10; i++)
+				NextInt();
+		}
+
+		// Next value in [0, Max]
+		int NextInt()
+		{
+			r[front] += r[rear];
+			const int result = (int)(r[front] >> 1);
+			if (++front >= Degree)
+				front = 0;
+			if (++rear >= Degree)
+				rear = 0;
+			return result;
 		}
 
 	private:
-		static uint32_t& State()
-		{
-			static thread_local uint32_t state = DefaultSeed;
-			return state;
-		}
+		static constexpr int Degree = 31;
+		static constexpr int Separation = 3;
+
+		uint32_t r[Degree];
+		int front;
+		int rear;
 	};
 }

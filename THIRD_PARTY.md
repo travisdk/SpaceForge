@@ -30,10 +30,17 @@ Notes:
   - Cloud Seed, `DSP/ReverbChannel.h`: caches the per-line random values and regenerates them
     only when a seed changes. The original regenerated them (allocating a `std::vector`) on
     every decay, size or modulation change, which must not happen on the audio thread.
-  - Cloud Seed, `DSP/ModulatedDelay.h`, `DSP/ModulatedAllpass.h`, new `DSP/ModPhaseRandom.h`: the
-    start phase of the modulation came from `std::rand()`, which differs between C libraries
-    (glibc, MSVC), so the sound differed slightly per platform. Now a small LCG with a fixed
-    start value, the same on every platform.
+  - Cloud Seed, `DSP/ModulatedDelay.h`, `DSP/ModulatedAllpass.h`, `DSP/DelayLine.h`,
+    `DSP/AllpassDiffuser.h`, `DSP/ReverbChannel.h`, `DSP/ReverbController.h`, new
+    `DSP/ModPhaseRandom.h`: the start phase of the modulation came from `std::rand()`, which
+    differs between C libraries (glibc, MSVC), so the sound differed per platform. Now every
+    engine has its own generator, seeded when it is prepared, and hands it to the lines in the
+    order they are constructed in. The generator is the algorithm behind glibc's `random()`
+    (additive feedback, r[i] = r[i-3] + r[i-31], seeded by a minimal-standard generator and run
+    in for 310 values; described in the glibc documentation and in many write-ups). Only the
+    algorithm is used: the code is written for SpaceForge and no glibc code is copied. With seed
+    1 it gives the sequence `srand(1)` gave on Linux, so the sound is bit for bit what it was
+    (proved with `sf2_regress`: all factory presets, difference -inf dB).
   - Cloud Seed, `DSP/ReverbChannel.h`, `DSP/Hp1.h`, `DSP/Lp1.h`: the input was zeroed sample by
     sample below -90 dBFS (against CPU spikes from tiny numbers), a dead zone around zero that
     distorted every quiet signal into hiss; and the input filters cut off any negative state at

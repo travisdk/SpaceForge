@@ -57,11 +57,10 @@ struct Candidate
     std::string why; // the first measurement it failed
 };
 
-// Cloud Seed starts its modulation at random phases (ModPhaseRandom) and a reset does not restart
+// Cloud Seed starts its modulation at random phases and a reset does not restart
 // them: renders that must match sample for sample each get a fresh engine.
 std::unique_ptr<dsp::SpaceEngine> makeEngine()
 {
-    Cloudseed::ModPhaseRandom::Seed (1);
     auto engine = std::make_unique<dsp::SpaceEngine>();
     engine->prepare (kRate);
     return engine;

@@ -136,6 +136,13 @@ namespace Cloudseed
 			Utils::Copy(output, tempBuffer, bufSize);
 		}
 
+		// SpaceForge: draws one start phase per filter, in index order (all of them, used or not)
+		void SeedModPhases(ModPhaseRandom& random)
+		{
+			for (int i = 0; i < MaxStageCount; i++)
+				filters[i].SeedModPhase(random);
+		}
+
 		void ClearBuffers()
 		{
 			for (int i = 0; i < MaxStageCount; i++)

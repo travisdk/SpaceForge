@@ -68,6 +68,8 @@ void testCloudSeed()
             reverb->SetParameter (Cloudseed::Parameter::DryOut, 0.0); // wet only
             reverb->SetSamplerate ((int) rate);
             reverb->ClearBuffers();
+            Cloudseed::ModPhaseRandom random; // the modulation phases: seed 1, as the engine does
+            reverb->SeedModPhases (random);
 
             const size_t length = (size_t) (rate * 8.0);
             std::vector<float> inL (length, 0.0f), inR (length, 0.0f), outL (length), outR (length);
@@ -173,10 +175,24 @@ void testClouds()
     CHECK_RANGE (level, -30.0, 0.0); // clearly audible grains
     CHECK (channelsDiffer (outL, outR)); // stereo spread gives two different channels
 }
+
+// The modulation start phases come from the algorithm behind glibc's random(), written out in
+// ModPhaseRandom. These are the first values of srand(1) on Linux: the test fails on any platform
+// where the generator does not give them, which is what keeps the sound the same everywhere.
+void testModPhaseRandom()
+{
+    Cloudseed::ModPhaseRandom random (1);
+    const int expected[] = { 1804289383, 846930886, 1681692777, 1714636915, 1957747793 };
+    for (const int e : expected)
+        CHECK (random.NextInt() == e);
+    Cloudseed::ModPhaseRandom zero (0), one (1); // seed 0 means 1, as in glibc
+    CHECK (zero.NextInt() == one.NextInt());
+}
 } // namespace
 
 int main()
 {
+    testModPhaseRandom();
     testCloudSeed();
     testClouds();
     return finish ("engines");

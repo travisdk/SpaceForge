@@ -61,7 +61,7 @@ namespace Cloudseed
 			index = DelayBufferSize - 1;
 			samplesProcessed = 0;
 
-			modPhase = 0.01 + 0.98 * ModPhaseRandom::Next(); // SpaceForge: was std::rand()
+			modPhase = 0.5f;
 			delayA = 0;
 			delayB = 0;
 			gainA = 0;
@@ -75,6 +75,24 @@ namespace Cloudseed
 			InterpolationEnabled = true;
 			ModulationEnabled = true;
 			Update();
+		}
+
+		// SpaceForge: see ModulatedDelay::SeedModPhase (also the reset to the constructor's state).
+		// The expression is this class's original one.
+		void SeedModPhase(ModPhaseRandom& random)
+		{
+			const int sampleDelay = SampleDelay;
+			const float modAmount = ModAmount, modRate = ModRate;
+			index = DelayBufferSize - 1;
+			samplesProcessed = 0;
+			SampleDelay = 100;
+			ModAmount = 0.0;
+			ModRate = 0.0;
+			modPhase = 0.01 + 0.98 * random.NextInt() / (float)ModPhaseRandom::Max;
+			Update();
+			SampleDelay = sampleDelay;
+			ModAmount = modAmount;
+			ModRate = modRate;
 		}
 
 		void ClearBuffers()

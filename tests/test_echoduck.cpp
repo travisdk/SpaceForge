@@ -22,7 +22,6 @@ constexpr int kPositions[] = { 0, 25, 50, 75, 100 };
 
 std::unique_ptr<dsp::SpaceEngine> makeEngine (const dsp::MacroPositions& macros, bool grains = true)
 {
-    Cloudseed::ModPhaseRandom::Seed (1);
     auto engine = std::make_unique<dsp::SpaceEngine>();
     dsp::SpaceVoicing voicing;
     voicing.grainsEnabled = grains;

@@ -271,6 +271,13 @@ namespace Cloudseed
 			diffuser.ClearBuffers();
 		}
 
+		// SpaceForge: the delay first, then the diffuser (the order the members are constructed in)
+		void SeedModPhases(ModPhaseRandom& random)
+		{
+			delay.SeedModPhase(random);
+			diffuser.SeedModPhases(random);
+		}
+
 		void ClearBuffers()
 		{
 			delay.ClearBuffers();
