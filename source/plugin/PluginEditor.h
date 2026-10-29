@@ -25,6 +25,7 @@ public:
 
     void paint (juce::Graphics&) override;
     void resized() override;
+    void parentHierarchyChanged() override;
     bool keyPressed (const juce::KeyPress&) override;
 
     static constexpr int kWidth = 980, kHeight = 600;
