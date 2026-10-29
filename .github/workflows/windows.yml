@@ -42,7 +42,6 @@ jobs:
           mkdir -p dist
           cp -r build/SpaceForge_artefacts/Release/VST3/SpaceForge.vst3 dist/
           cp build/SpaceForge_artefacts/Release/CLAP/SpaceForge.clap dist/
-          cp build/SpaceForge_artefacts/Release/Standalone/SpaceForge.exe dist/
 
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}

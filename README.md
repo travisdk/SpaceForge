@@ -9,7 +9,7 @@ SpaceForge combines two open-source engines:
 - **Mutable Instruments Clouds** (granular texture): the grains take from the tail of the room and
   feed part of it back, so the cloud keeps itself alive.
 
-Formats: VST3, CLAP and Standalone. Linux is the main platform; the code is kept platform
+Formats: VST3 and CLAP. Linux is the main platform; the code is kept platform
 independent.
 
 ## Controls
